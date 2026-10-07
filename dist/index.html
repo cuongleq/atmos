@@ -233,12 +233,18 @@ header {
   border-radius: 12px !important;
 }
 
-input, select, button.secondary, .chip {
+input, select, button.secondary, .chip, .quick button, #searchResults button, #disasterSearchResults button {
   background: rgba(30, 41, 59, 0.5) !important;
   border-color: var(--line) !important;
   color: var(--ink) !important;
   backdrop-filter: blur(8px);
   border-radius: 8px !important;
+}
+
+.quick button.selected {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-color: var(--blue) !important;
 }
 
 button.primary {

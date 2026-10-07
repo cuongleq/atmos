@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Dự báo thời tiết đa tham số cho Việt Nam: 16 biến, 7 hệ thống mô hình, hiệu chỉnh EMOS và dự báo xác suất đã được kiểm thử trên tập dữ liệu đóng băng."><meta name="theme-color" content="#101f2d"><meta property="og:type" content="website"><meta property="og:locale" content="vi_VN"><meta property="og:title" content="ATMOS · Dự báo thời tiết đa tham số"><meta property="og:description" content="Dự báo 16 biến, 7 hệ thống mô hình, hiệu chỉnh EMOS kèm khoảng tin cậy, radar mưa, chất lượng không khí và bản tin NCHMF."><title>ATMOS · Phòng dự báo đa tham số</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23101f2d'/%3E%3Cpath d='M14 45L32 14L50 45M22 34H42' fill='none' stroke='%23b5ee72' stroke-width='5'/%3E%3C/svg%3E"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><style>/*STYLE*/</style></head>
+<body><header><div class="brand"><span class="mark">A</span><strong>ATMOS</strong><span class="brand-note">DỰ BÁO ĐA THAM SỐ</span></div><div class="header-right"><span id="headModels">7 HỆ THỐNG · 16 BIẾN</span> <span class="tag" id="headTag">BẢN CHÍNH THỨC</span></div></header>
+<main><div class="intro"><div><p class="eyebrow">HIỆU CHỈNH SAU DỰ BÁO · ĐÃ KIỂM THỬ</p><h1>64 biến.<br><span>Bảy hệ thống. Một phân phối xác suất.</span></h1></div><p class="intro-note" id="introNote">Mỗi giá trị đều kèm khoảng tin cậy 10–90%<br>và xác suất vượt ngưỡng, không chỉ một con số.</p></div>
+<nav aria-label="Chức năng"><button class="tab active" data-view="forecast">01 <span>Dự báo</span></button><button class="tab" data-view="verify">02 <span>Kiểm thử</span></button><button class="tab" data-view="methods">03 <span>Phương pháp</span></button><button class="tab" data-view="disaster">04 <span>Thiên tai</span></button></nav>
+
+<section id="forecast" class="view">
+<div class="toolbar"><form id="searchForm"><label class="sr" for="search">Tìm xã, tỉnh, thành phố Việt Nam và thế giới</label><input id="search" placeholder="Tìm xã, tỉnh, thành phố… (VN và thế giới)" autocomplete="off" required minlength="2"><button class="primary">Tìm địa điểm</button></form><button id="refresh" class="secondary">Cập nhật</button><button id="exportForecast" class="secondary" disabled>Tải CSV</button></div>
+<div id="searchResults" aria-live="polite"></div><div class="quick" id="quick"></div><div id="liveStatus" class="notice" role="status">Đang lấy dữ liệu dự báo…</div>
+<div id="officialBanner"></div>
+<article class="panel official-panel"><div class="section-head"><div><p class="eyebrow">CƠ QUAN KHÍ TƯỢNG VIỆT NAM · NGUYÊN VĂN</p><h2>Bản tin chính thức (NCHMF)</h2></div><span class="small" id="nchmfMeta">—</span></div>
+<p class="small">Thu thập tự động phía server do NCHMF không có API mở. Mức cảnh báo do ứng dụng suy ra từ từ khóa + độ tươi bản tin — luôn đọc bản tin gốc trước khi ra quyết định.</p>
+<div id="nchmfList"><p class="muted">Chờ dữ liệu bản tin.</p></div></article>
+
+
+<div class="weather-grid">
+<article class="current panel"><p class="eyebrow">HIỆN TẠI</p><h2 id="place">—</h2><p id="coordinates" class="muted">—</p><div class="temperature"><span id="temp">—</span><span>°C</span></div><p id="condition">Đang tải</p><div class="current-stats"><div>Độ ẩm<strong id="humidity">—</strong></div><div>Gió 10 m<strong id="wind">—</strong></div><div>Cảm giác như<strong id="feels">—</strong></div></div><p id="calibNote" class="small">—</p><p class="small">Nguồn trực tiếp: Open-Meteo</p></article>
+<article class="rain-panel panel"><div class="section-head"><div><p class="eyebrow">24 GIỜ TỚI</p><h2>Mưa &amp; gió cần chú ý</h2></div><span class="tag dark">ĐÃ HIỆU CHỈNH</span></div>
+<div class="risk-number"><strong id="rain24">—</strong><span>mm / 24 giờ</span></div>
+<div class="range"><span>Tổng mưa thấp nhất → cao nhất</span><strong id="rainRange">—</strong></div>
+<div class="risk-row"><div>Xác suất mưa ≥ 10 mm/giờ<small>Chuẩn hoá trên tập huấn luyện</small><strong id="probHeavy">—</strong></div><div>Gió giật ≥ 60 km/h<small>Trong 24 giờ tới</small><strong id="gustRisk">—</strong></div></div>
+<div id="riskMessage" class="notice">Chờ dữ liệu để đánh giá.</div>
+<p class="small">Ngưỡng tham khảo của ứng dụng, chưa hiệu chuẩn theo địa phương. Xem bản tin chính thức tại <a href="https://nchmf.gov.vn/" target="_blank" rel="noopener">NCHMF</a>.</p></article>
+</div>
+
+<article class="panel chart-panel"><div class="section-head"><div><p class="eyebrow">DẢI XÁC SUẤT HIỆU CHỈNH</p><h2>Biến theo giờ</h2></div><div class="chart-controls"><select id="chartVariable" aria-label="Biến dự báo"></select><select id="horizon" aria-label="Thời hạn"><option value="48">48 giờ</option><option value="96">96 giờ</option><option value="168">7 ngày</option></select><label class="inline"><input type="checkbox" id="showBands" checked> Dải 10–90%</label></div></div><div id="legend" class="legend"></div><div id="chart" class="chart" role="img" aria-label="Dự báo xác suất">Chưa có dữ liệu.</div><p id="spreadNote" class="small">—</p></article>
+
+<article class="panel"><div class="section-head"><h2>64 biến, một chỗ</h2><span class="small">Giá trị giữa cùng khoảng 10–90%</span></div><div id="paramGrid" class="param-grid"><p class="muted">Chờ dữ liệu.</p></div></article>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">HẰNG NGÀY · TỐI ĐA CỦA NGUỒN MỞ</p><h2>Dự báo 16 ngày</h2></div><span class="small" id="daysTz">—</span></div><div id="days" class="days"><p class="muted">Chờ dữ liệu dự báo.</p></div><p class="small">Nguồn mở Open-Meteo chỉ cho dự báo hằng ngày tới 16 ngày; dự báo tất định xa hơn không có độ tin cậy công bố nên ứng dụng không tự vẽ thêm.</p></article>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">CHI TIẾT TỪNG NGÀY TRONG THÁNG</p><h2 id="dayDetailTitle">Chọn một ngày trong tháng</h2></div><span class="small" id="dayDetailMeta">—</span></div><div id="dayDetail"><p class="muted">Bấm vào một ngày có dự báo trong lịch tháng (hoặc thẻ 16 ngày) để xem chi tiết từng giờ.</p></div></article>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">LỊCH THÁNG · QUAN TRẮC + DỰ BÁO</p><h2 id="monthTitle">Tháng này</h2></div><span class="small" id="monthMeta">—</span></div><div class="month-nav"><button id="monthPrev" class="secondary">◀ Tháng trước</button><input type="month" id="monthPicker" aria-label="Chọn tháng năm"><button id="monthNext" class="secondary">Tháng sau ▶</button></div><div id="monthCal" class="month-cal"><p class="muted">Chờ dữ liệu.</p></div><p class="small">Ô nền nhạt: quan trắc ERA5 các ngày đã qua. Ô viền đậm: ngày có dự báo tất định (bấm để xem chi tiết từng giờ). Ô mờ: ngoài tầm 16 ngày — ứng dụng không tự vẽ thêm dự báo.</p></article>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">SỨC KHỎE · CHẤT LƯỢNG KHÔNG KHÍ</p><h2>Không khí hôm nay</h2></div><span class="small" id="aqiMeta">—</span></div>
+<p class="small">Mô hình CAMS châu Âu qua Open-Meteo, cập nhật theo giờ. Trẻ em, người già và người bệnh hô hấp nên theo ngưỡng bên dưới khi ra ngoài.</p>
+<div id="aqiNow"><p class="muted">Chờ dữ liệu không khí.</p></div>
+<div id="aqiStrip" class="strip"></div>
+<div id="aqiPollutants" class="pollutant-grid"></div>
+<p class="small" id="aqiAdvice"></p></article>
+<div class="notice">Sản phẩm nghiên cứu. Bản đồ radar và cảnh báo ở mục "Thiên tai" là nguồn ngoại tuyến trực tiếp, không qua hiệu chỉnh EMOS. Khi có thiên tai, luôn theo dõi cơ quan khí tượng chính thức và hướng dẫn của địa phương.</div>
+</section>
+
+<section id="verify" class="view" hidden>
+<div class="section-head"><div><p class="eyebrow">DỰ BÁO ĐÃ PHÁT HÀNH TRƯỚC GIỜ ĐỐI CHIẾU</p><h2>Độ chính xác phải đo được.</h2></div><button id="downloadReport" class="secondary">Tải báo cáo JSON</button></div>
+<p class="muted">Dữ liệu đối chiếu là ERA5 tái phân tích, không phải số đo trực tiếp từ trạm. Tập kiểm tra đóng băng: <span id="verifyPeriod">—</span></p>
+<div class="verify-controls"><label>Địa điểm<select id="testCity"></select></label><label>Biến dự báo<select id="testVariable"></select></label><label>Thời hạn<select id="testLead"></select></label></div>
+<div id="testSummary" class="metric-grid"></div>
+<div class="two-columns">
+<article class="panel"><div class="section-head"><h3>So sánh sai số</h3><span class="small">RMSE trên tập đóng băng</span></div><div id="scoreBars"></div><p id="testVerdict" class="notice"></p><p id="bootNote" class="small"></p></article>
+<article class="panel"><h3>Chọn mô hình dự báo</h3><p class="small">Kiểm chứng chặn trong cửa sổ huấn luyện, không dùng dữ liệu kiểm tra. "Chênh lệch" là khoảng trống ghép cặp so với ứng viên dẫn đầu.</p><div class="table-wrap"><table><thead><tr><th>Họ mô hình</th><th>Phạt</th><th>RMSE kiểm chứng</th><th>Chênh lệch</th></tr></thead><tbody id="candTable"></tbody></table></div><p id="candNote" class="small"></p></article>
+</div>
+<div class="two-columns">
+<article class="panel"><h3>Sự kiện vượt ngưỡng</h3><p class="small" id="threshNote">—</p><div class="table-wrap"><table><thead><tr><th>Ngưỡng</th><th>CSI</th><th>Phát hiện</th><th>Báo sai</th><th>Brier</th><th>BSS</th></tr></thead><tbody id="eventTable"></tbody></table></div></article>
+<article class="panel"><h3>Dự báo xác suất</h3><div id="probSummary" class="metric-grid compact"></div><p class="small">CRPS đo cả phân phối; pinball ở các mốc 10–50–90%. Tỉ lệ độ rộng/sai số bằng 1 nghĩa là độ rộng vừa khớp độ chắc chắn.</p><div class="section-head"><h4>Độ tin cậy</h4><span class="small">Dự báo vs quan sát</span></div><div id="reliability" class="reliability"></div></article>
+</div>
+<article class="panel"><h3>Phân hoạch đứng hạng</h3><p class="small">Với dự báo hiệu chuẩn, 11 cột phải gần bằng nhau. Lệch sang hai đầu nghĩa là dự báo quá hẹp hoặc quá rộng.</p><div id="rankHist" class="rank-hist"></div></article>
+<article class="panel"><h3>Mọi biến tại địa điểm này</h3><div class="table-wrap"><table><thead><tr><th>Biến</th><th>Thời hạn</th><th>Số hệ thống</th><th>RMSE</th><th>TB đều</th><th>Cải thiện</th><th>CRPS</th></tr></thead><tbody id="allVarsTable"></tbody></table></div></article>
+<article class="panel"><h3>Thiết kế kiểm thử</h3><div id="protocol" class="protocol"></div></article>
+</section>
+
+<section id="methods" class="view" hidden>
+<p class="eyebrow">BẢN ĐỒ CÔNG NGHỆ DỰ BÁO</p><h2>Các hướng tiếp cận trên thế giới</h2><p class="muted">Danh mục tiêu biểu, không phải toàn bộ phần mềm. Phân biệt hệ thống khí tượng, phương pháp nghiên cứu và ứng dụng hiển thị.</p><div class="method-grid">
+<article class="panel"><span class="method-index">01 / VẬT LÝ</span><h3>Dự báo số trị</h3><p>Giải các phương trình khí quyển từ điều kiện ban đầu: GFS/GEFS (Mỹ), IFS/ENS (ECMWF), ICON (Đức), UKMO, ARPEGE/AROME (Pháp), GEM (Canada), GSM/MSM (Nhập), ACCESS (Úc), KMA và GRAPES (Trung Quốc).</p><p class="small">Ứng dụng này lấy trực tiếp bảy hệ thống xác định qua Open-Meteo: GFS, IFS 0,25°, ICON, JMA, GEM, Météo-France và UK Met Office. Không chạy lại mô hình số trị trong trình duyệt.</p><a href="https://open-meteo.com/en/docs" target="_blank" rel="noopener">Danh mục mô hình và phạm vi cung cấp</a></article>
+<article class="panel"><span class="method-index">02 / XÁC SUẤT</span><h3>Dự báo tổ hợp</h3><p>Nhiều lần chạy với điều kiện ban đầu và cấu hình khác nhau giúp mô tả những kịch bản có thể xảy ra. ENS, GEFS và AIFS ENS thuộc hướng này.</p><p class="small">Kho dự báo quá khứ của ECMWF ENS và NOAA GEFS chỉ giữ khoảng ba tháng gần nhất, nên ứng dụng không dùng chúng làm tín hiệu hiệu chỉnh — không thể kiểm thử thì không dùng. Thay vào đó độ rộng là mức bất đồng giữa bảy hệ thống xác định.</p><a href="https://www.ecmwf.int/en/about/media-centre/news/2025/ecmwfs-ensemble-ai-forecasts-become-operational" target="_blank" rel="noopener">ECMWF · AIFS ENS</a></article>
+<article class="panel"><span class="method-index">03 / HỌC MÁY</span><h3>AI khí tượng</h3><p>GraphCast, GenCast và AIFS học sự tiến triển của khí quyển từ dữ liệu khí tượng. GenCast tạo dự báo tổ hợp; AIFS đã được ECMWF đưa vào vận hành.</p><p class="small">Các mô hình này có dữ liệu đầu vào, trọng số và yêu cầu tính toán riêng. Ứng dụng chưa tích hợp suy luận GraphCast/GenCast/AIFS; tên mô hình ở đây là khảo sát, không phải chức năng đã chạy.</p><a href="https://deepmind.google/blog/gencast-predicts-weather-and-the-risks-of-extreme-conditions-with-sota-accuracy/" target="_blank" rel="noopener">Google DeepMind · GenCast</a></article>
+<article class="panel"><span class="method-index">04 / RẤT NGẮN HẠN</span><h3>Radar, vệ tinh &amp; đối lưu</h3><p>Nowcasting theo dõi sự dịch chuyển và phát triển của mưa bằng radar, vệ tinh và số liệu trạm. HRRR là hệ thống dự báo khu vực của NOAA; phạm vi từng hệ thống cần kiểm tra trước khi dùng.</p><p class="small">Dự báo mưa dông cục bộ tại Việt Nam cần dữ liệu radar và quan trắc địa phương. Mô hình toàn cầu không giải quyết đầy đủ khác biệt từng phường hay từng thửa ruộng.</p><a href="https://www.emc.ncep.noaa.gov/emc/pages/numerical_forecast_systems/hrrr.php" target="_blank" rel="noopener">NOAA · HRRR</a></article>
+<article class="panel"><span class="method-index">05 / HIỆU CHỈNH</span><h3>Thống kê sau dự báo</h3><p>Hiệu chỉnh sai lệch, MOS, EMOS, hiệu chỉnh phân vị và kết hợp mô hình nhằm cải thiện dự báo tại điểm cụ thể. Cần tách dữ liệu huấn luyện và kiểm tra theo thời gian.</p><p class="small">Phần kiểm thử triển khai EMOS hồi quy ridge chọn bằng kiểm chứng chặn, hiệu chỉnh phân phối theo độ bất đồng mô hình, và bảy hệ thống thay vì ba. Dự báo trực tiếp dùng đúng bộ hệ số đã kiểm thử.</p><a href="https://open-meteo.com/en/docs/previous-runs-api" target="_blank" rel="noopener">Nguồn dự báo quá khứ</a></article>
+<article class="panel"><span class="method-index">06 / ỨNG DỤNG</span><h3>Hiển thị và quyết định</h3><p>Windy, Ventusky và các ứng dụng thời tiết giúp người dùng xem bản đồ, dự báo và sản phẩm từ các nhà cung cấp. Giao diện tốt không tự tạo ra độ chính xác của mô hình.</p><p class="small">Giới hạn còn lại: sáu địa điểm, một năm dữ liệu, đối chiếu bằng tái phân tích chứ không phải trạm đo. Chưa có khoảng tin cậy bootstrap cho kiểm định nhiều mùa hay kiểm chứng độc lập theo sự kiện.</p><a href="https://wmo.int/site/science-action/weather-forecasts-and-early-warnings" target="_blank" rel="noopener">WMO · Dự báo và cảnh báo sớm</a></article></div>
+<article class="panel"><h3>Nguồn dữ liệu và quyền sử dụng</h3><p>Dữ liệu <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> và các cơ quan cung cấp mô hình; đối chiếu <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noopener">ERA5 từ ECMWF/Copernicus qua Open-Meteo</a>. Dữ liệu có giấy phép CC BY 4.0; API miễn phí dành cho mục đích phi thương mại với giới hạn sử dụng. Khi triển khai thương mại, cần tuân thủ <a href="https://open-meteo.com/en/terms" target="_blank" rel="noopener">điều khoản nhà cung cấp</a>.</p></article>
+</section>
+
+<section id="disaster" class="view" hidden>
+<p class="eyebrow">Nguồn trực tiếp từ các cơ quan thiên văn &amp; khí tượng</p><h2>Radar, bão, ngập lụt và cảnh báo</h2>
+<p class="muted">Các lớp dưới đây kéo trực tiếp từ nhà cung cấp công khai tại thời điểm mở. Đây là lớp ngữ cảnh ngoại tuyến, không phải kết quả hiệu chỉnh của dự báo đa tham số ở trên.</p>
+
+<div class="disaster-toolbar toolbar">
+  <div id="disasterChips" class="chips"><span class="muted">Đang tải danh sách…</span></div>
+  <button id="disasterRefreshRadar" class="secondary">Cập nhật radar</button>
+  <button id="disasterLoadAlerts" class="secondary">Nạp cảnh báo mới nhất</button>
+</div>
+<form id="disasterSearchForm" class="toolbar"><label class="sr" for="disasterSearch">Tìm vị trí muốn xem radar và cảnh báo</label><input id="disasterSearch" placeholder="Tìm nơi muốn xem: xã, tỉnh, thành phố… (VN và thế giới)" autocomplete="off" required minlength="2"><button class="primary">Xem radar &amp; cảnh báo</button></form>
+<div id="disasterSearchResults" aria-live="polite"></div>
+<p class="small" id="disasterPlaceNote">Radar và cảnh báo sẽ gắn với vị trí đang dự báo.</p>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">RADAR MƯA</p><h3>Lớp radar mưa RainViewer</h3></div><span class="tag dark">NGOẠI TUYẾN TRỰC TIẾP</span></div>
+<div id="radarMap" class="radar-map" role="img" aria-label="Bản đồ radar mưa"><div id="radarMsg" class="notice">Đang tải bản đồ radar…</div></div>
+<div id="radarLegend" class="radar-legend" aria-label="Chú giải màu radar"><strong>Mưa trên radar:</strong>
+<span><i style="background:#8fd0f5"></i>mưa nhẹ</span><span><i style="background:#3fae5a"></i>mưa vừa</span><span><i style="background:#f5e663"></i>mưa to</span><span><i style="background:#e34a3a"></i>mưa rất to / dông</span><span><i style="background:#b04ae3"></i>cực đoan, có thể kèm đá</span>
+<span class="tiny">Thang màu tương đối của RainViewer (màu càng nóng = mưa càng lớn). Vùng không màu là không có mưa trong khung giờ radar. Phóng quá sâu sẽ mờ dần do tile gốc chỉ tới zoom 7.</span></div>
+<p class="small">Dữ liệu radar toàn cầu công khai từ <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>. Tile nền từ OpenStreetMap contributors. Khung giờ gần nhất và dự báo ngắn hạn của RainViewer.</p><p class="small">Xem radar, gió và mưa toàn màn hình cho đúng điểm này: <a id="windyLink" href="https://www.windy.com/" target="_blank" rel="noopener">mở Windy tại vị trí dự báo</a>.</p></article>
+
+<div class="two-columns">
+<article class="panel"><div class="section-head"><h3>Cảnh báo &amp; sự kiện gần đây</h3><span class="small" id="alertsMeta">—</span></div>
+<p class="small">Sự kiện từ các hệ thống công khai: động đất USGS, lốc xoáy nhiệt đới, lũ, cháy rừng và hạn hán qua GDACS/UNISDR. Dữ liệu thô, chưa kiểm định lại theo địa phương.</p>
+<div id="alertsList" class="alerts-list"><p class="muted">Chưa nạp. Chọn "Nạp cảnh báo mới nhất".</p></div></article>
+
+<article class="panel"><h3>Theo dõi chính thức &amp; mô hình tham khảo</h3>
+<p class="small">Nguồn tin cậy khi ra quyết định:</p>
+<div class="ref-grid">
+  <a class="ref-card" href="https://nchmf.gov.vn/" target="_blank" rel="noopener"><strong>NCHMF Việt Nam</strong><span>Trung tâm Dự báo Khí tượng Thuỷ văn Quốc gia — cảnh báo chính thức cho Việt Nam.</span></a>
+  <a class="ref-card" href="https://www.gdacs.org/" target="_blank" rel="noopener"><strong>GDACS · UN</strong><span>Hệ thống Cảnh báo &amp; Phối hợp Thảm hoạ Toàn cầu — lũ, động đất, bão, cháy rừng.</span></a>
+  <a class="ref-card" href="https://www.wmo.int/" target="_blank" rel="noopener"><strong>WMO</strong><span>Tổ chức Khí tượng Thế giới — chuẩn hoá &amp; cảnh báo đa quốc gia.</span></a>
+  <a class="ref-card" href="https://www.jtwc.navy.mil/" target="_blank" rel="noopener"><strong>JTWC · US Navy</strong><span>Trung tâm Cảnh báo Bão Liên hợp — đường đi bão nhiệt đới.</span></a>
+  <a class="ref-card" href="https://earthquake.usgs.gov/" target="_blank" rel="noopener"><strong>USGS</strong><span>Cơ quan Khảo sát Địa chất Hoa Kỳ — động đất toàn cầu.</span></a>
+  <a class="ref-card" href="https://www.flood.fireeye.com/" target="_blank" rel="noopener"><strong>Hệ thống tham khảo lũ</strong><span>Mô hình ngập lụt mã nguồn mở thường dựa GloFAS/EFAS/HRRR; kiểm tra ngưỡng theo lưu vực địa phương.</span></a>
+</div>
+<p class="small">Lưu ý ngập lụt: mỗi lưu vực có tần số ngưỡng khác nhau; dùng mô hình này để tham khảo tương đối, không thay đường cảnh báo thuỷ văn chính thức.</p></article>
+</div>
+</section>
+
+<footer><strong>ATMOS</strong><span>Dữ liệu: Open-Meteo · NOAA · ECMWF · DWD · JMA · ECCC · Météo-France · UKMO · ERA5 · CAMS · USGS · RainViewer · NCHMF</span><span>Mã nguồn mở · dữ liệu khí tượng CC BY 4.0 · Không có cam kết chính xác tuyệt đối.</span></footer></main>
+<script id="benchmark-data" type="application/json">/*BENCHMARK*/</script><script id="nchmf-data" type="application/json">/*NCHMF*/</script><script>/*ENGINE*/</script><script>/*APP*/</script></body></html>

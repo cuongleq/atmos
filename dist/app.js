@@ -58,33 +58,18 @@ function weatherFamily(code) {
   return { 0: '☀', 1: '⛅', 2: '🌫', 3: '🌦', 4: '🌧', 5: '❄', 6: '🌦', 7: '❄', 8: '⛈' }[g] || '—';
 }
 
-async function api(base, params, proxyLevel = 0) {
+async function api(base, params) {
   let url = base + '?' + new URLSearchParams(params);
-  if (proxyLevel === 1) {
-    url = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url);
-  } else if (proxyLevel === 2) {
-    url = 'https://thingproxy.freeboard.io/fetch/' + encodeURIComponent(url);
-  }
-
+  // Không dùng proxy trung gian nữa vì 8 request đồng thời sẽ làm treo proxy và gây đứng UI
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(45000) });
-    // Nếu proxy bị Open-Meteo chặn (trả về 403), ném lỗi để thử proxy tiếp theo
-    if (!r.ok && proxyLevel > 0) throw new Error('Proxy failed');
-    
+    // Giảm timeout xuống 15s để không bị treo "Đang tải" quá lâu
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
     const j = await r.json();
     if (!r.ok || j.error) {
-      if ((r.status === 429 || r.status === 403) && proxyLevel < 2) {
-        return api(base, params, proxyLevel + 1);
-      }
       throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);
     }
     return j;
   } catch (e) {
-    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('403') || e.message.includes('Proxy failed') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
-      return api(base, params, proxyLevel + 1);
-    }
-    // Nếu mọi proxy đều thất bại hoặc bị chặn, trả về lỗi gốc để UI báo đúng
-    if (proxyLevel > 0) throw new Error('API/Proxy bị chặn (Lỗi 429 hoặc 403). Xin thử lại sau.');
     throw e;
   }
 }

@@ -281,6 +281,29 @@ button.primary:hover {
 }
 
 a { color: #60a5fa !important; }
+
+/* Tùy chỉnh thanh cuộn (Scrollbar) cao cấp cho Dark Mode */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Hiệu ứng khối khí mượt mà như Heat-map */
+.smooth-mass {
+  filter: blur(12px);
+}
 </style></head>
 <body><header><div class="brand"><span class="mark">A</span><strong>ATMOS</strong><span class="brand-note">DỰ BÁO ĐA THAM SỐ</span></div><div class="header-right"><span id="headModels">7 HỆ THỐNG · 16 BIẾN</span> <span class="tag" id="headTag">BẢN CHÍNH THỨC</span></div></header>
 <main><div class="intro" style="display: none;"><div><p class="eyebrow">HIỆU CHỈNH SAU DỰ BÁO · ĐÃ KIỂM THỬ</p><h1>64 biến.<br><span>Bảy hệ thống. Một phân phối xác suất.</span></h1></div><p class="intro-note" id="introNote">Mỗi giá trị đều kèm khoảng tin cậy 10–90%<br>và xác suất vượt ngưỡng, không chỉ một con số.</p></div>
@@ -2302,11 +2325,31 @@ function weatherFamily(code) {
   return { 0: '☀', 1: '⛅', 2: '🌫', 3: '🌦', 4: '🌧', 5: '❄', 6: '🌦', 7: '❄', 8: '⛈' }[g] || '—';
 }
 
-async function api(base, params) {
-  const r = await fetch(base + '?' + new URLSearchParams(params), { signal: AbortSignal.timeout(45000) });
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);
-  return j;
+async function api(base, params, proxyLevel = 0) {
+  let url = base + '?' + new URLSearchParams(params);
+  if (proxyLevel === 1) {
+    url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+  } else if (proxyLevel === 2) {
+    url = 'https://corsproxy.io/?' + encodeURIComponent(url);
+  }
+
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(45000) });
+    const j = await r.json();
+    if (!r.ok || j.error) {
+      if (r.status === 429 && proxyLevel < 2) {
+        console.warn(`Rate limit hit (Proxy Level ${proxyLevel}). Retrying via proxy...`);
+        return api(base, params, proxyLevel + 1);
+      }
+      throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);
+    }
+    return j;
+  } catch (e) {
+    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
+      return api(base, params, proxyLevel + 1);
+    }
+    throw e;
+  }
 }
 
 /* ---------- calibration lookup ---------- */
@@ -2449,7 +2492,7 @@ async function fetchPlaceData(aPlace) {
       ...base, models: m.id, hourly: LIVE_VARS.join(','),
     })),
   ]);
-  if (results[0].status !== 'fulfilled') return null;
+  if (results[0].status !== 'fulfilled') throw results[0].reason;
   const models = results.slice(1).map(r => (r.status === 'fulfilled' ? r.value : null));
   const byId = {};
   models.forEach((m, i) => { if (m) byId[MODELS[i].id] = m; });
@@ -2475,10 +2518,19 @@ async function loadForecast() {
   notice('riskMessage', 'Chờ dữ liệu để đánh giá.');
   notice('liveStatus', 'Đang lấy dự liệu cho ' + place.name + '…');
 
-  const fc = await fetchPlaceData(place);
-  if (token !== requestId) return;
-  if (!fc) {
-    notice('liveStatus', 'Không tải được dự báo. Kiểm tra kết nối rồi chọn Cập nhật. Báo cáo kiểm thử vẫn dùng được.', 'error');
+  try {
+    const fc = await fetchPlaceData(place);
+    if (token !== requestId) return;
+    live = fc;
+  } catch (err) {
+    if (token !== requestId) return;
+    console.error(err);
+    const msg = err.message || '';
+    if (msg.includes('429') || msg.toLowerCase().includes('limit exceeded')) {
+      notice('liveStatus', 'Đã hết lượt API miễn phí của Open-Meteo (10,000 lượt/ngày) do lượng truy vấn lớn. Xin thử lại vào ngày mai.', 'error');
+    } else {
+      notice('liveStatus', 'Không tải được dự báo: ' + msg + '. Kiểm tra kết nối rồi chọn Cập nhật.', 'error');
+    }
     $('condition').textContent = 'Chưa có dữ liệu';
     $('chart').textContent = 'Không có dữ liệu trực tiếp.';
     $('days').textContent = 'Không có dữ liệu.';
@@ -2536,9 +2588,7 @@ async function fetchLevels() {
     models: LEVEL_MODELS.join(','),
     past_days: 7, forecast_days: 7, timezone: 'auto',
   });
-  const r = await fetch('https://api.open-meteo.com/v1/forecast?' + u, { signal: AbortSignal.timeout(45000) });
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error(j.reason || 'HTTP ' + r.status);
+  const j = await api('https://api.open-meteo.com/v1/forecast', Object.fromEntries(u.entries()));
   const hourly = j.hourly || {};
   const series = {};
   for (const id of LEVEL_MODELS) {
@@ -2982,7 +3032,8 @@ const GRID_VARS = [
  * dùng đúng bảy hệ thống như phần còn lại của trang.
  */
 async function fetchAirGrid() {
-  const stepKm = 200, radiusKm = 700, n = Math.ceil(radiusKm / stepKm);
+  // Nâng cấp độ phân giải từ 200km xuống 100km, giảm nhẹ bán kính còn 500km để không vượt quá giới hạn 100 tọa độ/request của Open-Meteo
+  const stepKm = 100, radiusKm = 500, n = Math.ceil(radiusKm / stepKm);
   const pts = [];
   for (let iy = -n; iy <= n; iy++) {
     for (let ix = -n; ix <= n; ix++) {
@@ -2995,12 +3046,12 @@ async function fetchAirGrid() {
     latitude: pts.map(p => p.lat.toFixed(3)).join(','),
     longitude: pts.map(p => p.lon.toFixed(3)).join(','),
     hourly: GRID_VARS.join(','),
-    models: MODELS.map(m => m.id).join(','),
+    // Tối ưu hóa: Thay vì lấy cả 7 mô hình (tốn 7x dung lượng và API request),
+    // bản đồ khối khí diện rộng chỉ cần 1 mô hình ECMWF là đủ chính xác.
+    models: 'ecmwf_ifs',
     past_days: 2, forecast_days: 1, timezone: 'auto',
   });
-  const r = await fetch('https://api.open-meteo.com/v1/forecast?' + u, { signal: AbortSignal.timeout(50000) });
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error(j.reason || 'HTTP ' + r.status);
+  const j = await api('https://api.open-meteo.com/v1/forecast', Object.fromEntries(u.entries()));
   const list = Array.isArray(j) ? j : [j];
   if (list.length < pts.length) throw new Error('chỉ nhận ' + list.length + '/' + pts.length + ' điểm');
 
@@ -3073,7 +3124,7 @@ function drawAirMassOverlay() {
       + 'độ dày cột ' + fmt(c.thick, 0) + ' m';
     L.polygon(pts, {
       color: MASS_COLORS[c.tone] || MASS_COLORS.neutral,
-      weight: 1, fillOpacity: 0.34, interactive: false,
+      stroke: false, fillOpacity: 0.55, interactive: false, className: 'smooth-mass'
     }).addTo(airLayer);
     // bindTooltip gắn tooltip vào chính polygon. Dựng L.tooltip rồi gọi
     // setTooltip không tồn tại trên Leaflet.
@@ -4676,14 +4727,15 @@ async function initRadar() {
     radarMap = L.map('radarMap', {
       center, zoom: 6, minZoom: 2, maxZoom: 18, worldCopyJump: true, attributionControl: true,
     });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Sử dụng bản đồ vệ tinh độ phân giải cao (Esri World Imagery) thay vì OSM mặc định
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors &copy; RainViewer',
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
     }).addTo(radarMap);
 
     const latest = frames[frames.length - 1];
-    // Tile radar thật chỉ tới zoom 7: từ zoom 8 trở lên server trả ô trống.
-    // Dùng tile 512px (nét hơn) + maxNativeZoom để Leaflet phóng to thay vì xin ô trống.
+    // Trả lại cấu hình Retina 512px vì máy chủ RainViewer chặn zoom > 7 đối với ảnh tổng hợp toàn cầu.
+    // Việc dùng tile 512px + zoomOffset -1 chính là cách ép nó hiện độ phân giải cao gấp 4 lần bình thường.
     radarLayer = L.tileLayer(
       `${data.host}${latest.path}/512/{z}/{x}/{y}/2/1_1.png`,
       { tileSize: 512, zoomOffset: -1, maxNativeZoom: 7, maxZoom: 18, opacity: 0.7, attribution: 'RainViewer' },

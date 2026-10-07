@@ -151,3 +151,126 @@ svg .tvb{font-size:10px;fill:#526474;font-family:'Segoe UI',Arial,sans-serif}
   .river-q{font-size:21px}
   .river-top{flex-direction:column;align-items:flex-start;gap:1px}
 }
+/* ==== gps va bang muc nuoc ==== */
+#geoNote{margin:-4px 0 10px}
+.mass-tip{font-size:12px;line-height:1.45;padding:6px 9px}
+.mass-tip strong{display:block;font-size:13px}
+#airLegend:empty{display:none}
+#riverLevels td{vertical-align:top}
+#riverLevels td strong.lv{display:block;font-size:16px;font-weight:700}
+#riverLevels td strong.lv.low{color:#2a5f96}
+#riverLevels td strong.lv.mid{color:#b5701f}
+#riverLevels td strong.lv.high{color:#c0392b}
+#riverLevels tr{cursor:pointer}
+#riverLevels tr:hover{background:#f6f9fc}
+
+@media(max-width:650px){
+  #riverLevels table{min-width:520px}
+  #riverLevels td strong.lv{font-size:15px}
+}
+
+/* Premium Dark Mode & Glassmorphism Aesthetics */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --ink: #f8fafc;
+  --muted: #94a3b8;
+  --line: rgba(255, 255, 255, 0.1);
+  --paper: #0f172a;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --orange: #f59e0b;
+  --panel-bg: rgba(30, 41, 59, 0.6);
+  --panel-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  font-family: 'Outfit', sans-serif !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%) !important;
+  background-attachment: fixed !important;
+  color: var(--ink) !important;
+}
+
+.panel {
+  background: var(--panel-bg) !important;
+  border-color: var(--panel-border) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border-radius: 16px !important;
+  transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+.panel:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
+}
+
+header {
+  background: rgba(15, 23, 42, 0.8) !important;
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--panel-border) !important;
+}
+
+.param, .ref-card {
+  background: var(--panel-bg) !important;
+  border-color: var(--panel-border) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+}
+
+.param:hover, .ref-card:hover {
+  border-color: var(--blue) !important;
+  background: rgba(30, 41, 59, 0.8) !important;
+  transform: translateY(-2px);
+}
+
+.mday, .pollutant, .river-card, .alert-item {
+  background: var(--panel-bg) !important;
+  border-color: var(--panel-border) !important;
+  border-radius: 12px !important;
+}
+
+input, select, button.secondary, .chip {
+  background: rgba(30, 41, 59, 0.5) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 8px !important;
+}
+
+button.primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  border-radius: 8px !important;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+}
+
+.tab.active {
+  color: var(--blue) !important;
+  border-bottom-color: var(--blue) !important;
+}
+
+.current, .metric {
+  background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border-radius: 16px !important;
+  border: 1px solid var(--panel-border) !important;
+}
+
+.notice {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-left-color: var(--blue) !important;
+  color: var(--ink) !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+
+a { color: #60a5fa !important; }

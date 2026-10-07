@@ -5,7 +5,8 @@
 <nav aria-label="Chức năng"><button class="tab active" data-view="forecast">01 <span>Dự báo</span></button><button class="tab" data-view="mass">02 <span>Khối khí &amp; sông</span></button><button class="tab" data-view="verify">03 <span>Kiểm thử</span></button><button class="tab" data-view="methods">04 <span>Phương pháp</span></button><button class="tab" data-view="disaster">05 <span>Thiên tai</span></button></nav>
 
 <section id="forecast" class="view">
-<div class="toolbar"><form id="searchForm"><label class="sr" for="search">Tìm xã, tỉnh, thành phố Việt Nam và thế giới</label><input id="search" placeholder="Tìm xã, tỉnh, thành phố… (VN và thế giới)" autocomplete="off" required minlength="2"><button class="primary">Tìm địa điểm</button></form><button id="refresh" class="secondary">Cập nhật</button><button id="exportForecast" class="secondary" disabled>Tải CSV</button></div>
+<div class="toolbar"><form id="searchForm"><label class="sr" for="search">Tìm xã, tỉnh, thành phố Việt Nam và thế giới</label><input id="search" placeholder="Tìm xã, tỉnh, thành phố… (VN và thế giới)" autocomplete="off" required minlength="2"><button class="primary">Tìm địa điểm</button></form><button id="geoBtn" class="secondary" title="Dùng vị trí GPS của thiết bị">Vị trí của tôi</button><button id="refresh" class="secondary">Cập nhật</button><button id="exportForecast" class="secondary" disabled>Tải CSV</button></div>
+<p class="small" id="geoNote" role="status">Nút "Vị trí của tôi" dùng GPS thiết bị, cần quyền vị trí và trang mở bằng https://. Không dùng thì vị trí đang chọn giữ nguyên.</p>
 <div id="searchResults" aria-live="polite"></div><div class="quick" id="quick"></div><div id="liveStatus" class="notice" role="status">Đang lấy dữ liệu dự báo…</div>
 <div id="officialBanner"></div>
 <article class="panel official-panel"><div class="section-head"><div><p class="eyebrow">CƠ QUAN KHÍ TƯỢNG VIỆT NAM · NGUYÊN VĂN</p><h2>Bản tin chính thức (NCHMF)</h2></div><span class="small" id="nchmfMeta">—</span></div>
@@ -49,16 +50,14 @@
 <article class="panel"><div class="section-head"><div><p class="eyebrow">PHÂN LOẠI KHỐI KHÔNG</p><h3>Khối không khí đang phủ lên khu vực</h3></div></div>
 <div id="airMassBox"><p class="muted">Đang tải…</p></div></article>
 
-<article class="panel"><div class="section-head"><div><p class="eyebrow">QUẠT ĐƯỜNG ĐI</p><h3>Khối khí này đến từ đâu và sẽ đi đâu</h3></div><span class="small">tích phân gió 850 hPa</span></div>
-<div id="trajectory"><p class="muted">Đang tải…</p></div>
-<p class="small" id="trajNote">—</p>
-<p class="small">Cách tính: mỗi giờ lấy gió ở tầng 850 hPa của từng mô hình, dời điểm khởi tham chiếu một đoạn 20 km theo hướng gió đó, lặp lại. Đường đứt là lịch sử (khối khí đến từ đâu), đường liền là dự báo (đi đâu). Mức độ phân tán giữa các mô hình chính là mức bất đồng, không phải sai số đã kiểm chứng.</p></article>
-
-<article class="panel"><div class="section-head"><div><p class="eyebrow">LƯU LƯỢNG SÔNG · GloFAS</p><h3>Các con sông quanh đây</h3></div><span class="small" id="riverMeta">—</span></div>
+<article class="panel"><div class="section-head"><div><p class="eyebrow">LƯU LƯỢNG &amp; MỰC NƯỚC SÔNG · GloFAS</p><h3>Các con sông quanh đây</h3></div><span class="small" id="riverMeta">—</span></div>
+<div class="table-wrap"><table><thead><tr><th>Sông / vị trí</th><th>Lưu lượng</th><th>Mực nước quy ước</th><th>So TB 30 ngày</th><th>Mốc tham khảo</th></tr></thead><tbody id="riverLevels"><tr><td colspan="5" class="muted">Đang tải…</td></tr></tbody></table></div>
+<p class="small">Tên sông tra từ OSM theo đường nước có tên gần ô lưới GloFAS: <span id="riverNameMeta">—</span>. Ô không có tên trong OSM thì ghi rõ là chưa có tên, không đoán theo vùng.</p>
 <p class="small">Đơn vị là m³/s (lưu lượng), không phải mực nước tính bằng mét — quy đổi sang mét cần đường đo đạc riêng của từng tuyến sông. Mỗi thẻ là một ô lưới GloFAS 5 km khác nhau trong bán kính khoảng 30 km; GloFAS lấy con sông lớn nhất của mỗi ô nên các con sông lớn và kênh nhỏ có thể cùng xuất hiện.</p>
 <div id="riverList" class="river-list"><p class="muted">Đang tải…</p></div>
 <div id="riverChart"><p class="muted">Chọn một con sông.</p></div>
-<p class="small">So sánh với trung bình 30 ngày gần nhất của chính tuyến sông đó, không so với ngưỡng cảnh báo — ngưỡng chính thức do cơ quan thủy văn địa phương công bố và không có trong nguồn mở này.</p></article>
+<p class="small">So sánh với trung bình 30 ngày gần nhất của chính tuyến sông đó, không so với ngưỡng cảnh báo.</p>
+<p class="small"><strong>Cột mực nước là số quy ước, không phải số đo.</strong> Quy đổi lưu lượng (m³/s) sang mét cần đường đo đạc đúng từng trạm — dữ liệu đó do cơ quan thủy văn quản lý và không có trong nguồn mở. Ở đây dùng công thức lũy thừa H = a·Q^b với hệ số tham khảo để <em>so sánh giữa các ngày</em>, tuyệt đối không dùng làm số đo đối chiếu. Khi có cảnh báo lũ thuộc về địa phương, hãy theo đúng cơ quan thủy văn.</p></article>
 </section>
 
 <section id="verify" class="view" hidden>
@@ -96,6 +95,7 @@
 
 <div class="disaster-toolbar toolbar">
   <div id="disasterChips" class="chips"><span class="muted">Đang tải danh sách…</span></div>
+  <button id="airGridToggle" class="secondary">Bật khối khí trên bản đồ</button>
   <button id="disasterRefreshRadar" class="secondary">Cập nhật radar</button>
   <button id="disasterLoadAlerts" class="secondary">Nạp cảnh báo mới nhất</button>
 </div>
@@ -108,7 +108,15 @@
 <div id="radarLegend" class="radar-legend" aria-label="Chú giải màu radar"><strong>Mưa trên radar:</strong>
 <span><i style="background:#8fd0f5"></i>mưa nhẹ</span><span><i style="background:#3fae5a"></i>mưa vừa</span><span><i style="background:#f5e663"></i>mưa to</span><span><i style="background:#e34a3a"></i>mưa rất to / dông</span><span><i style="background:#b04ae3"></i>cực đoan, có thể kèm đá</span>
 <span class="tiny">Thang màu tương đối của RainViewer (màu càng nóng = mưa càng lớn). Vùng không màu là không có mưa trong khung giờ radar. Phóng quá sâu sẽ mờ dần do tile gốc chỉ tới zoom 7.</span></div>
+<div id="airLegend"></div>
+<p class="small" id="airGridMeta">—</p>
+<p class="small" id="airGridNote">Lớp khối khí chưa nạp.</p>
 <p class="small">Dữ liệu radar toàn cầu công khai từ <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>. Tile nền từ OpenStreetMap contributors. Khung giờ gần nhất và dự báo ngắn hạn của RainViewer.</p><p class="small">Xem radar, gió và mưa toàn màn hình cho đúng điểm này: <a id="windyLink" href="https://www.windy.com/" target="_blank" rel="noopener">mở Windy tại vị trí dự báo</a>.</p></article>
+
+<article class="panel"><div class="section-head"><div><p class="eyebrow">KHỐI KHÍ LẠNH / NÓNG · HƯỚNG ĐI</p><h3>Khối khí này đến từ đâu và sẽ đi đâu</h3></div><span class="small">tích phân gió 850 hPa</span></div>
+<div id="trajectory"><p class="muted">Chưa tải quạt đường đi.</p></div>
+<p class="small" id="trajNote">—</p>
+<p class="small">Cách tính: mỗi giờ lấy gió ở tầng 850 hPa của từng mô hình, dời điểm khởi tham chiếu một đoạn 20 km theo hướng gió đó, lặp lại. Đường đứt là lịch sử (khối khí đến từ đâu), đường liền là dự báo (đi đâu). Mức độ phân tán giữa các mô hình chính là mức bất đồng, không phải sai số đã kiểm chứng.</p></article>
 
 <article class="panel"><div class="section-head"><div><p class="eyebrow">XOÁY NHIỆT ĐỚI · VỊ TRÍ HIỆN TẠI</p><h3>Các cơn bão đang hoạt động</h3></div><span class="small" id="tcMeta">—</span></div>
 <div id="tcList"><p class="muted">Chưa nạp. Chọn "Nạp cảnh báo mới nhất".</p></div>

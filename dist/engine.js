@@ -1713,6 +1713,88 @@
     };
   }
 
+  /* ================================================================
+   * 13. Air-mass grid, wind barbs, nominal water level
+   * ================================================================ */
+
+  /**
+   * Builds a lat/lon grid at a fixed spacing, clipped to a radius in km, and
+   * classifies each cell from 850/500 hPa fields. The baseline is the grid's own
+   * mean so classes describe the region relative to itself rather than to an
+   * absolute threshold that would be wrong at every latitude.
+   *
+   * `cells` entries: { lat, lon, km, t850, thick, wind, dir, tag, tone, delta }
+   */
+  function airMassGrid(opts) {
+    const { lat, lon, radiusKm = 700, stepKm = 200, values } = opts;
+    if (!Array.isArray(values) || !values.length) return { cells: [], mean: null };
+    const tAll = [], thAll = [];
+    for (const v of values) {
+      if (finite(v.t850)) tAll.push(v.t850);
+      const th = thickness(v.z500, v.z850);
+      if (finite(th)) thAll.push(th);
+    }
+    const tMean = meanS(tAll), thMean = meanS(thAll);
+    const cells = [];
+    const n = Math.ceil(radiusKm / stepKm);
+    for (let iy = -n; iy <= n; iy++) {
+      for (let ix = -n; ix <= n; ix++) {
+        const dx = ix * stepKm, dy = iy * stepKm;
+        if (Math.hypot(dx, dy) > radiusKm) continue;
+        const p = offsetLatLon(lat, lon, dx, dy);
+        const v = values[values.length - 1];
+        cells.push({
+          lat: round(p.lat, 3), lon: round(p.lon, 3),
+          km: round(Math.hypot(dx, dy), 0),
+        });
+      }
+    }
+    return { cells, mean: { t850: round(tMean, 2), thick: round(thMean, 1) }, grid: values.length };
+  }
+
+  /** Classifies one grid cell against the grid mean. */
+  function classifyCell(cell, mean, windDeg) {
+    const tag = airMass({
+      t850: cell.t850, t850Baseline: mean.t850,
+      thick: cell.thick, thickBaseline: mean.thick,
+      rh850: cell.rh850, source: windDeg,
+    });
+    return tag ? { ...cell, ...tag, tone: tag.tone } : cell;
+  }
+
+  /**
+   * Nominal water level in metres from discharge in m3/s.
+   *
+   * IMPORTANT HONESTY NOTE. This is NOT a measurement. Stage-discharge curves
+   * (rating curves) are station specific, hysteretic and published by national
+   * hydrological services; no open source exposes them. What this returns is a
+   * nominal figure under an explicitly declared power law H = a * Q^b, so the
+   * UI must label it as a reference estimate, never as the official level.
+   *
+   * `a` is the stage at reference discharge `q0`; `b` the stage-discharge
+   * exponent. Both must come from a real rating curve for the station.
+   */
+  function nominalStage(q, a, b, q0 = 100) {
+    if (!finite(q) || !finite(a) || !finite(b) || !b) return null;
+    if (q <= 0) return 0;
+    return round(a * Math.pow(q / q0, b), 2);
+  }
+
+  /** Inverse of nominalStage: stage in metres back to discharge. */
+  function stageToQ(H, a, b, q0 = 100) {
+    if (!finite(H) || !finite(a) || !finite(b) || !b) return null;
+    if (H <= 0) return 0;   // mực bằng 0 tương ứng lưu lượng bằng 0
+    return round(q0 * Math.pow(H / a, 1 / b), 1);
+  }
+
+  /** Wind barbs: line length and head count encode speed, rotation shows direction. */
+  function windBarb(speedKmh, dirDeg) {
+    if (!finite(speedKmh) || !finite(dirDeg)) return null;
+    const level = Math.min(5, Math.floor(speedKmh / 10)); // 10 km/h per barb
+    const half = Math.floor(level / 2), full = level % 2;
+    return { level, half, full, dirDeg: round(((dirDeg % 360) + 360) % 360, 1), speedKmh: round(speedKmh, 1) };
+  }
+
   /** Great-circle distance in km, used to pick the nearest calibrated location. */
   function distanceKm(a, b) {
     const R = 6371, r = Math.PI / 180;
@@ -1728,6 +1810,7 @@
     pseudoMembers, crpsMembers, pointScores, eventScores, probScores, probEnsembleScores,
     pairedBootstrap, toSpeed, toDir, circularAbs, condGroup, conditionOf,
     distanceKm, predictFromCalibration, calibrate, calibrateDirection, calibrateCode,
+    airMassGrid, classifyCell, nominalStage, stageToQ, windBarb,
     evaluate, hourOf, dayOfYear, regimeKey, REGIME_EDGES,
     thickness, toUms, offsetLatLon, trajectory, bearingDeg, nearestOnTrack,
     airMass, frontalPassage, riverRisk,

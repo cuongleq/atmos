@@ -523,6 +523,7 @@ async function fetchRivers() {
     });
     const j = await api('https://flood-api.open-meteo.com/v1/flood', u);
     const q = j.daily.river_discharge || [];
+    const median = j.daily.river_discharge_median || [];
     const last = q.length - 1;
     if (last < 0 || !E.finite(q[last])) return null;
     return {
@@ -530,9 +531,10 @@ async function fetchRivers() {
       km: E.round(E.distanceKm(place, { lat: j.latitude, lon: j.longitude }), 1),
       time: j.daily.time,
       q,
-      median: j.daily.river_discharge_median || [],
+      median,
       p25: j.daily.river_discharge_p25 || [],
       p75: j.daily.river_discharge_p75 || [],
+      qMedian: E.finite(median[last]) ? median[last] : q[last],
     };
   });
   const byCell = new Map();
@@ -642,12 +644,440 @@ async function loadAirMassAndRivers() {
     if (massBox) massBox.innerHTML = '<p class="small">Không lấy được trường mức áp lực: ' + esc(e.message) + '</p>';
   }
   const rTok = token;
-  fetchRivers().then(r => {
+  fetchRivers().then(async r => {
     if (rTok !== levelsToken) return;
     rivers = r; renderRivers();
+    renderRiverLevels();
+    // Tên sông tra sau, không chặn phần lưu lượng: nếu OSM chậm hoặc lỗi thì
+    // bảng vẫn hiện lưu lượng và mực nước như thường.
+    await fetchRiverNames(rivers);
+    if (rTok !== levelsToken) return;
+    renderRiverLevels();
   }).catch(() => { if (riverBox) riverBox.innerHTML = '<p class="small">Không lấy được dữ liệu sông.</p>'; });
   const tn = $('massMeta');
   if (tn) tn.textContent = notes.length ? notes.join(' ') : (levels ? `${levels.time.length} giờ · 7 hệ thống` : '—');
+}
+
+/* ---------- A. vi tri thiet bi ---------- */
+
+let geoBusy = false;
+
+/** Nút GPS + trạng thái đang chờ quyền vị trí. */
+function initGeo() {
+  const btn = $('geoBtn');
+  if (btn) btn.onclick = useDeviceLocation;
+}
+
+/**
+ * Dinh vi bang GPS cua thiet bi. Chi chay tren HTTPS (hoac localhost) - trinh
+ * duyet chan tach tren HTTP. That bai thi bao ro nguyen nhan chu khong giam
+ * im lang, va giu nguyen vi tri dang xem.
+ */
+function useDeviceLocation() {
+  const btn = $('geoBtn');
+  const note = $('geoNote');
+  if (!navigator.geolocation) {
+    if (note) note.textContent = 'Thiết bị này không có GPS, không lấy được vị trí. Hãy dùng ô tìm kiếm.';
+    return;
+  }
+  if (!window.isSecureContext) {
+    if (note) note.textContent = 'Trình duyệt chỉ cho dùng GPS trên kết nối HTTPS. Mở trang bằng địa chỉ https:// là dùng được.';
+    return;
+  }
+  if (geoBusy) return;
+  geoBusy = true;
+  if (btn) btn.disabled = true;
+  if (note) note.textContent = 'Đang xin quyền dùng vị trí…';
+  const done = msg => {
+    geoBusy = false;
+    if (btn) btn.disabled = false;
+    if (note) note.textContent = msg;
+  };
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const lat = +pos.coords.latitude.toFixed(4), lon = +pos.coords.longitude.toFixed(4);
+    const name = await reverseGeocode(lat, lon);
+    place = { id: 'gps', name: name || 'Vị trí của tôi', lat, lon, utcOffset: 7, fromGps: true };
+    done('Đã dùng vị trí thiết bị' + (name ? ': ' + esc(name) : '') + '. Chọn lại địa điểm khác sẽ tắt chế độ này.');
+    loadForecast();
+  }, err => {
+    const why = { 1: 'quyền vị trí bị từ chối', 2: 'không lấy được vị trí', 3: 'lỗi đo đạc vị trí' }[err.code] || 'không rõ nguyên nhân';
+    done('Không dùng GPS: ' + why + '. Vị trí đang xem giữ nguyên.');
+  }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+}
+
+/**
+ * Dịch toạ độ thành tên nơi chốn. Dùng BigDataCloud vì cho phép gọi chéo
+ * miền từ trình duyệt; Nominatim cũng được nhưng phụ thuộc User-Agent.
+ */
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=vi', { signal: AbortSignal.timeout(12000) });
+    const j = await r.json();
+    if (!r.ok) return null;
+    const parts = [j.city || j.locality, j.principalSubdivision].filter(Boolean);
+    const name = [...new Set(parts.filter(p => p && !parts.some(q => q !== p && q.includes(p))))].slice(0, 2).join(', ');
+    return name || j.countryName || null;
+  } catch { return null; }
+}
+
+/* ---------- B. luoi khong khi de ve len ban do ---------- */
+
+let airGrid = null;
+let airLayer = null;
+
+// Biến lấy cho lưới khối khí. Ghi đúng tên biến, không suy diễn: tên sai khiến
+// Open-Meteo trả lỗi 400 cho cả request thay vì bỏ trống một ô.
+const GRID_VARS = [
+  'temperature_850hPa', 'geopotential_height_850hPa', 'geopotential_height_500hPa',
+  'relative_humidity_850hPa', 'wind_speed_850hPa', 'wind_direction_850hPa',
+];
+
+/**
+ * Lấy trường 850/500 hPa trên một lưới quanh điểm đang xét, rồi phân loại
+ * từng ô so với trung bình của chính lưới đó. Một request cho nhiều toạ độ,
+ * dùng đúng bảy hệ thống như phần còn lại của trang.
+ */
+async function fetchAirGrid() {
+  const stepKm = 200, radiusKm = 700, n = Math.ceil(radiusKm / stepKm);
+  const pts = [];
+  for (let iy = -n; iy <= n; iy++) {
+    for (let ix = -n; ix <= n; ix++) {
+      const dx = ix * stepKm, dy = iy * stepKm;
+      if (Math.hypot(dx, dy) > radiusKm) continue;
+      pts.push(E.offsetLatLon(place.lat, place.lon, dx, dy));
+    }
+  }
+  const u = new URLSearchParams({
+    latitude: pts.map(p => p.lat.toFixed(3)).join(','),
+    longitude: pts.map(p => p.lon.toFixed(3)).join(','),
+    hourly: GRID_VARS.join(','),
+    models: MODELS.map(m => m.id).join(','),
+    past_days: 2, forecast_days: 1, timezone: 'auto',
+  });
+  const r = await fetch('https://api.open-meteo.com/v1/forecast?' + u, { signal: AbortSignal.timeout(50000) });
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.reason || 'HTTP ' + r.status);
+  const list = Array.isArray(j) ? j : [j];
+  if (list.length < pts.length) throw new Error('chỉ nhận ' + list.length + '/' + pts.length + ' điểm');
+
+  // Chi so gio hien tai cua tung diem. Chuoi bat dau 00:00 tai dia diem nen
+  // "hien tai" nam o dau, dung muc lech gio cua chinh nguon de tim.
+  const nowIdx = arr => {
+    const off = (arr.utc_offset_seconds || 25200) * 1000;
+    const iso = new Date(Date.now() + off).toISOString().slice(0, 13) + ':00';
+    const t = arr.hourly.time || [];
+    const i = t.indexOf(iso);
+    if (i >= 0) return i;
+    const now = new Date(Date.now() + off).getTime();
+    let best = 0, gap = Infinity;
+    t.forEach((x, k) => { const g = Math.abs(new Date(x + 'Z').getTime() - now); if (g < gap) { gap = g; best = k; } });
+    return best;
+  };
+
+  const values = list.map((a, k) => {
+    const h = a.hourly || {}, i = nowIdx(a);
+    // Phai RUT GIA TRI truoc khi loc. Loc truc tiep tren cac cot van giu con
+    // mang, va meanS cua mang la null - day la nguoi dan sai "khong co du lieu".
+    const pick = base => {
+      const vals = MODELS.map(m => h[base + '_' + m.id]).map(c => (c ? c[i] : null)).filter(E.finite);
+      return vals.length ? E.meanS(vals) : null;
+    };
+    return {
+      lat: a.latitude ?? pts[k].lat, lon: a.longitude ?? pts[k].lon,
+      t850: pick('temperature_850hPa'),
+      z850: pick('geopotential_height_850hPa'),
+      z500: pick('geopotential_height_500hPa'),
+      rh850: pick('relative_humidity_850hPa'),
+      wind: pick('wind_speed_850hPa'),
+      dir: pick('wind_direction_850hPa'),
+    };
+  });
+  const g = E.airMassGrid({ lat: place.lat, lon: place.lon, radiusKm, stepKm, values });
+  // Chi lay cac o co du lieu; trung binh tinh tren chinh tap o day.
+  const good = g.cells.map((c, k) => ({ ...c, ...values[k], thick: E.thickness(values[k].z500, values[k].z850) }))
+    .filter(c => E.finite(c.t850) && E.finite(c.thick));
+  const tMean = E.meanS(good.map(c => c.t850)), thMean = E.meanS(good.map(c => c.thick));
+  const cells = good.map(c => E.classifyCell(c, { t850: tMean, thick: thMean }, c.dir));
+  return { cells, mean: { t850: tMean, thick: thMean }, radiusKm, stepKm };
+}
+
+const MASS_COLORS = {
+  cold: '#2a5f96', cool: '#6fa3cc', neutral: '#8494a2', mild: '#d69a4a', warm: '#c0392b',
+};
+const MASS_LABELS = [
+  ['cold', 'Lạnh hơn vùng'], ['cool', 'Hơi lạnh hơn vùng'], ['neutral', 'Ôn hòa'],
+  ['mild', 'Hơi nóng hơn vùng'], ['warm', 'Nóng hơn vùng'],
+];
+
+/** Vẽ lớp khối khí và (nếu có) lớp mũi tên gió lên cùng bản đồ radar. */
+function drawAirMassOverlay() {
+  if (!airGrid || !radarMap || !airLayer) return;
+  airLayer.clearLayers();
+  const lat0 = place.lat, lon0 = place.lon;
+  for (const c of airGrid.cells) {
+    const dLat = (c.lat - lat0) * 111.32;
+    const dLon = (c.lon - lon0) * 111.32 * Math.max(0.15, Math.cos(lat0 * Math.PI / 180));
+    const radKm = airGrid.stepKm * 0.62;
+    const pts = [];
+    for (let a = 0; a < 4; a++) {
+      const ang = a * Math.PI / 2;
+      const p = E.offsetLatLon(c.lat, c.lon, Math.cos(ang) * radKm, Math.sin(ang) * radKm);
+      pts.push([p.lat, p.lon]);
+    }
+    const label = '<strong>' + (c.tag || '—') + '</strong><br>' + fmt(c.t850, 1) + ' °C ở 850 hPa<br>'
+      + 'lệch ' + (c.dT > 0 ? '+' : '') + fmt(c.dT, 1) + ' °C so với trung bình vùng<br>'
+      + 'độ dày cột ' + fmt(c.thick, 0) + ' m';
+    L.polygon(pts, {
+      color: MASS_COLORS[c.tone] || MASS_COLORS.neutral,
+      weight: 1, fillOpacity: 0.34, interactive: false,
+    }).addTo(airLayer);
+    // bindTooltip gắn tooltip vào chính polygon. Dựng L.tooltip rồi gọi
+    // setTooltip không tồn tại trên Leaflet.
+    L.marker([c.lat, c.lon], {
+      interactive: false, opacity: 0, icon: L.divIcon({ className: '', iconSize: [1, 1] }),
+    }).bindTooltip(label, { permanent: false, direction: 'top', className: 'mass-tip' }).addTo(airLayer);
+  }
+  // Moc gio hien tai: ban do chong giong voi ban do khong co moc, rat de doc sai.
+  const nowIso = new Date(Date.now() + 25200 * 1000).toISOString().slice(0, 13) + ':00';
+  L.circle([lat0, lon0], {
+    radius: E.round(airGrid.stepKm * 620, 0), color: '#101f2d', weight: 2,
+    fill: false, dashArray: '6 5', interactive: false,
+  }).addTo(airLayer);
+  if (nowIso) L.control.attribution.addAttribution('Khối khí: 850/500 hPa · mốc hiện tại ' + nowIso.slice(11) + ' giờ địa phương');
+}
+
+/** Chu thich cho lop khong khi, giu ngay tren ban do. */
+function airMassLegendHtml() {
+  return '<div class="radar-legend" aria-label="Chú giải khối khí"><strong>Khối khí 850 hPa so với trung bình vùng:</strong>' +
+    MASS_LABELS.map(([k, label]) => '<span><i style="background:' + MASS_COLORS[k] + '"></i>' + label + '</span>').join('') +
+    '</div>';
+}
+
+async function loadAirGrid() {
+  const meta = $('airGridMeta'), host = $('airGridNote');
+  if (meta) meta.textContent = 'đang tải…';
+  try {
+    airGrid = await fetchAirGrid();
+    if (meta) meta.textContent = airGrid.cells.length + ' ô · bán kính ' + airGrid.radiusKm + ' km · ' + MODELS.length + ' hệ thống';
+    if (host) {
+      const coldest = [...airGrid.cells].sort((a, b) => a.dT - b.dT)[0];
+      const warmest = [...airGrid.cells].sort((a, b) => b.dT - a.dT)[0];
+      host.innerHTML = 'Trong vùng bán kính ' + airGrid.radiusKm + ' km, nhiệt độ 850 hPa dao động ' +
+        fmt(coldest.dT, 1) + ' đến ' + fmt(warmest.dT, 1) + ' °C so với trung bình vùng. ' +
+        'Ô lạnh nhất ở ' + fmt(coldest.km, 0) + ' km về phía ' + compass(E.bearingDeg(place, coldest)) +
+        '; ô nóng nhất ở ' + fmt(warmest.km, 0) + ' km về phía ' + compass(E.bearingDeg(place, warmest)) + '. ' +
+        'Đường đứt đen là vòng cách ' + fmt(airGrid.stepKm, 0) + ' km tính từ điểm bạn đang xét.';
+    }
+    const al0 = $('airLegend');
+    if (al0) al0.innerHTML = airMassLegendHtml();
+  drawAirMassOverlay();
+    return true;
+  } catch (e) {
+    airGrid = null;
+    const airGridError = e.message;
+    if (meta) meta.textContent = 'không tải được';
+    if (host) host.textContent = 'Không lấy được lưới khối khí: ' + esc(airGridError) + '. Bản đồ vẫn hiển thị radar bình thường.';
+    // Quan trọng: bao loi xong thi tra lai thay vi de loi cu, neu la lan
+    // tam tinh sau. Nguoi dung van co the dung radar binh thuong.
+    airGridRetry = setTimeout(() => { airGridRetry = null; loadAirGrid(); }, 60000);
+    return false;
+  }
+}
+let airGridRetry = null;
+
+/* ---------- C. ten sông tu OSM ---------- */
+
+let osmToken = 0;
+
+/**
+ * Tên sông gần ô lưới GloFAS. GloFAS không trả tên.
+ *
+ * Nguồn: Photon (Komoot) — dịch vụ địa danh OSM, cho phép gọi chéo miền và
+ * trả đúng osm_key/osm_value nên lọc được đường nước. Overpass và Nominatim
+ * đều chặn CORS từ trình duyệt nên không dùng được ở đây.
+ *
+ * Chỉ nhận feature có osm_key=waterway và osm_value=river/stream/canal, rồi tự
+ * tính khoảng cách để chọn tên gần ô lưới nhất. Không tìm được thì ghi rõ là
+ * không có tên, không đoán theo vùng.
+ */
+async function fetchRiverNames(riverList) {
+  const token = ++osmToken;
+  const meta = $('riverNameMeta');
+  const riverListMeta = $('riverMeta');
+  if (meta) meta.textContent = 'đang tra tên sông…';
+  let done = 0;
+  await pLimit(riverList, 1, async r => {
+    if (token !== osmToken) return null;
+    const found = [];
+    let anyOk = false;   // có ít nhất một lần trả về dữ liệu thật không
+    // Dò cả ba từ khóa địa danh rồi tự chọn tên gần nhất. Photon cho phép
+    // gọi chéo miền và không giới hạn như Nominatim, nên dò đủ ba từ khóa vẫn
+    // chịu tải được; chỉ ô đầu tiên có tên mới dừng sớm.
+    for (const term of ['Sông', 'Rạch', 'Kênh']) {
+      try {
+        const u = new URLSearchParams({
+          q: term, lat: r.cell.lat.toFixed(4), lon: r.cell.lon.toFixed(4),
+          limit: '50',
+        });
+        const res = await fetch('https://photon.komoot.io/api/?' + u, { signal: AbortSignal.timeout(18000) });
+        if (!res.ok) continue;
+        const j = await res.json();
+        anyOk = true;
+        for (const f of (j.features || [])) {
+          const p = f.properties || {};
+          // Chỉ nhận đường nước thật, dựa trên nhãn OSM chứ không đoán theo tên.
+          if (p.osm_key !== 'waterway') continue;
+          if (!WATERWAY_VALUES.has(p.osm_value)) continue;
+          // Tên chỉ gồm từ khóa ("Kênh", "Kênh 1") không mang thông tin địa
+          // danh; hiển thị như vậy cũng không cho biết đó là con kênh nào.
+          const name = (p.name || '').trim();
+          if (!name) continue;
+          if (PLACEHOLDER_NAME.test(name)) continue;
+          // OSM có cả tên tiếng Anh ("Cho Dem River"). Trang này phục vụ
+          // người dùng Việt, và tên song ngữ rất dễ gây nhầm với tên khác.
+          if (/\b(river|stream|canal|creek|waterway)\b/i.test(name)) continue;
+          // GeoJSON luôn là [kinh độ, vĩ độ]. Đảo thứ tự là đo 8.600 km thay
+          // vì 12 km — lỗi này rất dễ mắc vì cùng một cặp số nhưng thứ tự khác.
+          const c = f.geometry?.coordinates;
+          const pt = Array.isArray(c) && Array.isArray(c[0]) ? c[0] : c;
+          if (!Array.isArray(pt) || pt.length < 2) continue;
+          const lon = pt[0], lat = pt[1];
+          if (!E.finite(lat) || !E.finite(lon)) continue;
+          const km = E.distanceKm(r.cell, { lat, lon });
+          if (km > 25) continue;   // quá xa ô lưới thì không phải tuyến này
+          found.push({ name, km });
+        }
+        // Đã có tên trong 15 km thì không cần dò tiếp.
+        if (found.some(f => f.km <= 15)) break;
+      } catch { /* không phân biệt được lỗi mạng với không có tên; đánh dấu bên dưới */ }
+    }
+    // Chỉ coi là "không tra được" khi KHÔNG request nào thành công. Nếu nguồn
+    // đã trả dữ liệu mà vẫn không có tên trong 25 km thì đó là kết quả thật:
+    // phải ghi "chưa có tên", không phải "nguồn chặn".
+    r.nameFailed = !anyOk && !found.length;
+    // Loại trùng tên. Phải trả về đúng giá trị boolean ở CUỐI thân hàm: viết
+    // kiểu { if (...) return false; seen.add(k); } mà thiếu mệnh đề return cuối
+    // sẽ trả undefined cho mọi phần tử, khiến danh sách luôn rỗng.
+    const seen = new Set();
+    const uniq = found.filter(f => {
+      const k = f.name.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a, b) => a.km - b.km);
+    r.name = uniq[0]?.name || null;
+    r.nameKm = uniq[0]?.km ?? null;
+    r.nameOthers = uniq.slice(1, 3).map(u => u.name);
+    r.nameTried = true;
+    done++;
+    if (token === osmToken && meta) meta.textContent = 'đã tra ' + done + '/' + riverList.length + ' ô';
+    // Nghỉ nhẹ giữa các ô để không dồn tải lên một dịch vụ miễn phí.
+    await new Promise(res => setTimeout(res, 400));
+    // Vẽ lại ngay từng ô: người dùng thấy tên xuất hiện dần, không phải đợi
+    // hết cả bảng rồi mới có gì.
+    if (token === osmToken && rivers && rivers.includes(r)) {
+      renderRiverLevels();
+      if (riverListMeta) riverListMeta.textContent = 'đang tra tên ' + done + '/' + riverList.length + '…';
+    }
+    return r;
+  });
+  if (token === osmToken && riverListMeta) riverListMeta.textContent = riverList.length + ' ô lưới đã quét';
+  if (token === osmToken && meta) {
+    const named = riverList.filter(r => r.name).length;
+    const failed = riverList.filter(r => r.nameFailed).length;
+    // Phân biệt rõ hai tình huống: không có tên trong OSM, và không tra được do
+    // nguồn chặn. Gộp chung sẽ khiến người dùng tưởng dữ liệu không tồn tại.
+    meta.textContent = failed
+      ? named + '/' + riverList.length + ' ô có tên · ' + failed + ' ô không tra được (nguồn chặn yêu cầu)'
+      : named
+        ? named + '/' + riverList.length + ' ô có tên trong OSM'
+        : 'OSM chưa ghi tên cho các ô này';
+  }
+}
+
+/**
+ * Chọn MỘT từ khóa tìm tên đường nước theo quy mô lưu lượng: tuyến lớn gọi
+ * "Sông", kênh vừa gọi "Rạch", kênh nhỏ gọi "Kênh". Đây là cách gọi phổ biến
+ * ở Việt Nam, dùng để tìm nhanh; tên hiển thị lấy y nguyên từ OSM.
+ */
+function waterTermFor(q) {
+  if (!E.finite(q)) return 'Sông';
+  if (q >= 300) return 'Sông';
+  if (q >= 30) return 'Rạch';
+  return 'Kênh';
+}
+
+// osm_value hợp lệ cho đường nước có tên. Chỉ dùng danh sách này, không suy
+// diễn từ việc tên chứa chữ "sông".
+const WATERWAY_VALUES = new Set(['river', 'stream', 'canal', 'ditch']);
+
+// Tên đường nước chỉ gồm từ khóa rồi số ("Kênh", "Kênh 1", "Rạch 2") không
+// mang thông tin địa danh — hiển thị như vậy không cho biết đó là con kênh nào.
+const PLACEHOLDER_NAME = /^(Sông|Rạch|Kênh|Suối|Ao|Ruộng)\s*\d*$/i;
+
+/* ---------- D. muc nuoc quy uoc ---------- */
+
+/*
+ * Mực nước quy ước — đọc kỹ trước khi dùng.
+ *
+ * H = a * (Q / q0)^b  với H tính bằng mét, Q tính bằng m³/s.
+ *
+ * Đường đo đạc thật (rating curve) là đặc thù từng trạm, có độ trễ và do
+ * cơ quan thủy văn quản lý, không có trong bất kỳ nguồn mở nào. Bộ hệ số
+ * dưới đây là số tham khảu chọn để hợp lý với quy mô từng loại tuyến:
+ *   sông lớn  (q0 = 1000 m³/s, b = 0.54): Q = 2500 → 3,3 m; Q = 10000 → 7,0 m
+ *   kênh nhỏ  (q0 = 10 m³/s,   b = 0.50): Q = 2 → 0,4 m
+ * Chúng chỉ để SO SÁNH GIỮA CÁC NGÀY của cùng một tuyến. Tuyệt đối không
+ * dùng làm số đo đối chiếu với số đo đạc chính thức.
+ */
+const RATING = {
+  river: { a: 2.02, b: 0.54, q0: 1000, label: 'tuyến sông lớn (tham khảo)', ref: 2.0 },
+  channel: { a: 0.9, b: 0.5, q0: 10, label: 'kênh/rạch nhỏ (tham khảo)', ref: null },
+};
+
+/**
+ * Chọn bộ hệ số theo quy mô lưu lượng. Ngưỡng 300 m³/s phân tách tuyến sông
+ * lớn với kênh nhỏ; đây là đường phân loại của riêng ứng dụng, không phải
+ * phân loại của cơ quan quản lý.
+ */
+function ratingFor(q) {
+  return q >= 300 ? RATING.river : RATING.channel;
+}
+
+function renderRiverLevels() {
+  const host = $('riverLevels');
+  if (!host) return;
+  if (!rivers || !rivers.length) { host.innerHTML = '<p class="small">Chưa có dữ liệu sông.</p>'; return; }
+  const anyPending = rivers.some(r => !r.nameTried);
+  host.innerHTML = rivers.slice(0, 8).map((r, i) => {
+    const k = riverRiskOf(r);
+    if (!k) return '';
+    const rt = ratingFor(k.q);
+    const H = E.nominalStage(k.q, rt.a, rt.b, rt.q0);
+    const p25H = E.nominalStage(k.p25, rt.a, rt.b, rt.q0);
+    const p75H = E.nominalStage(k.p75, rt.a, rt.b, rt.q0);
+    const warn = rt === RATING.channel ? '' : H >= 3.5 ? 'high' : H >= 2.5 ? 'mid' : 'low';
+    const crossQ = rt.ref != null ? E.stageToQ(rt.ref, rt.a, rt.b, rt.q0) : null;
+    // Ba trạng thái khác nhau: đang tra, tra lỗi, và thật sự không có tên.
+    const name = r.name || (r.nameFailed ? 'Không tra được tên' : r.nameTried ? 'Chưa có tên trong OSM' : 'đang tra tên…');
+    return '<tr' + (i === riverSel ? ' class="chosen"' : '') + ' data-river="' + i + '">' +
+      '<td><strong>' + esc(name) + '</strong>' + (r.nameOthers?.length ? '<br><span class="tiny">còn gọi: ' + esc(r.nameOthers.join(', ')) + '</span>' : '') +
+      '<br><span class="tiny">ô lưới cách bạn ' + fmt(r.km, 1) + ' km · ' + compass(E.bearingDeg(place, r.cell)) +
+      (r.nameKm != null ? ' · tên đường nước cách ô lưới ' + fmt(r.nameKm, 1) + ' km' : '') + '</span></td>' +
+      '<td>' + fmt(k.q, 1) + '<span class="tiny"> m³/s</span></td>' +
+      '<td><strong class="lv ' + warn + '">' + (E.finite(H) ? fmt(H, 2) : '—') + ' m</strong>' +
+      (E.finite(p25H) && E.finite(p75H) ? '<br><span class="tiny">' + fmt(p25H, 2) + '–' + fmt(p75H, 2) + ' m</span>' : '') +
+      '<br><span class="tiny">' + rt.label + '</span></td>' +
+      '<td>' + (E.finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '%' : '—') + '</td>' +
+      '<td>' + (E.finite(crossQ) && E.finite(k.q)
+        ? (k.q >= crossQ ? '<span class="warn-chip orange">đã vượt ' + fmt(rt.ref, 1) + ' m</span>' : '<span class="tiny">cần ' + fmt(crossQ, 0) + ' m³/s</span>')
+        : '<span class="tiny">—</span>') + '</td>' +
+      '</tr>';
+  }).join('')
+    + (anyPending ? '<tr><td colspan="5" class="muted tiny">Đang tra tên sông trong OSM cho các ô còn lại…</td></tr>' : '');
+  host.querySelectorAll('[data-river]').forEach(tr => {
+    tr.onclick = () => { riverSel = +tr.dataset.river; renderRivers(); renderRiverLevels(); };
+  });
 }
 
 /* ---------- air quality (CAMS via Open-Meteo, no key, hourly) ---------- */
@@ -1027,19 +1457,23 @@ async function loadMonthCal(y, m) {
 
     const obsEnd = monthEnd < today ? monthEnd : (monthStart <= yest ? yest : null);
     if (obsEnd && monthStart <= obsEnd) {
-      const j = await api('https://archive-api.open-meteo.com/v1/archive', {
-        latitude: ref.lat, longitude: ref.lon,
-        start_date: monthStart, end_date: obsEnd, timezone: 'auto',
-        daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum',
-      });
-      if (token !== monthToken) return;
-      (j.daily?.time || []).forEach((d, i) => {
-        monthObs[d] = {
-          tmax: j.daily.temperature_2m_max?.[i] ?? null,
-          tmin: j.daily.temperature_2m_min?.[i] ?? null,
-          psum: j.daily.precipitation_sum?.[i] ?? null,
-        };
-      });
+      try {
+        const j = await api('https://archive-api.open-meteo.com/v1/archive', {
+          latitude: ref.lat, longitude: ref.lon,
+          start_date: monthStart, end_date: obsEnd, timezone: 'auto',
+          daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum',
+        });
+        if (token !== monthToken) return;
+        (j.daily?.time || []).forEach((d, i) => {
+          monthObs[d] = {
+            tmax: j.daily.temperature_2m_max?.[i] ?? null,
+            tmin: j.daily.temperature_2m_min?.[i] ?? null,
+            psum: j.daily.precipitation_sum?.[i] ?? null,
+          };
+        });
+      } catch (err) {
+        console.warn('Lỗi tải ERA5 cho lịch tháng, bỏ qua quan trắc:', err.message);
+      }
     }
     if (token !== monthToken) return;
 
@@ -2011,10 +2445,19 @@ async function initRadar() {
       { tileSize: 512, zoomOffset: -1, maxNativeZoom: 7, maxZoom: 18, opacity: 0.7, attribution: 'RainViewer' },
     ).addTo(radarMap);
     alertLayer = L.layerGroup().addTo(radarMap);
+    // Lop khong khi ve tren cung ban do radar. Ban do khu vuc dong du dat
+    // phong do khong khi o 850/500 hPa nen phai keo lui mot so km de thay het
+    // vung. Chi nap khi nguoi dung bat, tranh tai mot lan duyet khong can.
+    airLayer = L.layerGroup().addTo(radarMap);
+    if (airGrid) drawAirMassOverlay(); else loadAirGrid();
     drawDisasterPin();
     $('radarMsg').textContent = 'Radar hiện tại · khung ' +
       new Date(latest.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
-      ' (ICT).';
+      ' (ICT).' + (airGrid ? '' : ' Đang nạp lớp khối khí 850 hPa…');
+    const al = $('airLegend');
+    if (al) al.innerHTML = airGrid ? airMassLegendHtml() : '';
+    const tg = $('airGridToggle');
+    if (tg && airGrid) { tg.textContent = 'Tắt khối khí trên bản đồ'; tg.classList.remove('secondary'); tg.classList.add('primary'); }
   } catch (e) {
     $('radarMsg').textContent = 'Không tải được radar: ' + e.message + '. Tải lại khi có mạng.';
   }
@@ -2149,6 +2592,24 @@ function initDisasterTab() {
     initRadar();
   };
   $('disasterLoadAlerts').onclick = () => { loadAlerts(); loadTropicalCyclones(); };
+  // Bat/tat lop khong khi tren ban do radar.
+  $('airGridToggle').onclick = () => {
+    const on = radarMap && airLayer && radarMap.hasLayer(airLayer);
+    if (on) {
+      radarMap.removeLayer(airLayer);
+      $('airGridToggle').textContent = 'Bật khối khí trên bản đồ';
+      $('airGridToggle').classList.remove('primary');
+      $('airGridToggle').classList.add('secondary');
+    } else {
+      if (!airGrid) { $('airGridToggle').textContent = 'Đang tải…'; loadAirGrid(); }
+      if (airGrid && radarMap && airLayer) {
+        airLayer.addTo(radarMap);
+        $('airGridToggle').textContent = 'Tắt khối khí trên bản đồ';
+        $('airGridToggle').classList.remove('secondary');
+        $('airGridToggle').classList.add('primary');
+      }
+    }
+  };
 }
 
 /**
@@ -2217,6 +2678,7 @@ initDisasterTab();
 
 initSelects();
 initSearch();
+initGeo();
 quickRender();
 renderNchmf();
 renderProtocol();

@@ -786,6 +786,7 @@ check('bảng tra vùng mà trình duyệt dùng phải được kiểm chứng 
   // The page cannot ship the 2400-row kNN bank, so it ships this lookup instead.
   // It must therefore be scored on the frozen test window too, not assumed.
   const t = report.locations.flatMap(l => l.tests).find(x => x.usable && x.variable === 'weather_code');
+  assert.ok(t, 'phải có phép chấm mã thời tiết');
   const r = t.regime;
   assert.ok(r, 'phải xuất bảng tra vùng');
   assert.ok(r.cells.length > 5, 'bảng phải có ô: ' + r.cells.length);
@@ -906,6 +907,70 @@ check('giao diện co giãn được trên máy tính lẫn điện thoại', ()
   // Không được dùng chiều rộng cứng vượt màn hình điện thoại (bỏ qua max/min).
   assert.ok(/(?<![-\w])width:\s*(1[0-9]{3}|[5-9]\d\d)px/.test(css) === false,
     'có chiều rộng cứng quá rộng cho điện thoại');
+});
+check('mức nước quy ước quy đúng công thức và không bịa số', () => {
+  // H = a * (Q/q0)^b
+  near(E.nominalStage(1000, 2.02, 0.54, 1000), 2.02, 1e-9, 'tại lưu lượng tham chiếu');
+  near(E.nominalStage(0, 2.02, 0.54, 1000), 0, 1e-9, 'lưu lượng bằng 0');
+  assert.equal(E.nominalStage(null, 2, 0.5, 1000), null, 'thiếu lưu lượng phải trả null');
+  assert.equal(E.nominalStage(100, 2, 0, 1000), null, 'số mũ 0 là chia 0, phải trả null');
+  // Mốc tăng theo lưu lượng: đây là điều kiện vật lý bắt buộc.
+  const qs = [100, 300, 1000, 3000, 10000];
+  let prev = -1;
+  for (const q of qs) {
+    const H = E.nominalStage(q, 2.02, 0.54, 1000);
+    assert.ok(E.finite(H), 'mực nước phải hữu hạn ở Q=' + q);
+    assert.ok(H > prev, 'mực nước phải tăng khi lưu lượng tăng: Q=' + q);
+    prev = H;
+  }
+  // Qua bác nghịch. nominalStage làm tròn 2 chữ số thập phân nên khi quay ngược
+  // lưu lượng có sai số nhỏ; dung sai phản ánh đúng điều đó, không nới tùy tiện.
+  const H = E.nominalStage(2500, 2.02, 0.54, 1000);
+  const back = E.stageToQ(H, 2.02, 0.54, 1000);
+  assert.ok(Math.abs(back - 2500) / 2500 < 0.002, 'qua bác nghịch phải khớp trong 0,2%: ' + back);
+  assert.equal(E.stageToQ(0, 2, 0.5, 100), 0, 'mực 0 là lưu lượng 0');
+});
+check('lưới khối khí: phân loại theo trung bình vùng và phủ đúng bán kính', () => {
+  const values = [
+    { t850: 12, z850: 1500, z500: 5800 },   // lạnh
+    { t850: 16, z850: 1520, z500: 5880 },
+    { t850: 20, z850: 1540, z500: 5960 },
+    { t850: 24, z850: 1560, z500: 6040 },   // nóng
+    { t850: 28, z850: 1580, z500: 6120 },
+  ];
+  const g = E.airMassGrid({ lat: 10.8, lon: 106.6, radiusKm: 400, stepKm: 200, values });
+  assert.ok(g.cells.length > 0, 'phải có ô lưới');
+  for (const c of g.cells) assert.ok(c.km <= 400 + 1e-6, 'ô lưới vượt bán kính yêu cầu: ' + c.km);
+  assert.ok(E.finite(g.mean.t850), 'trung bình vùng phải hữu hạn');
+  const cold = E.classifyCell({ t850: 12, thick: 4300 }, g.mean, 350);
+  const warm = E.classifyCell({ t850: 28, thick: 4500 }, g.mean, 180);
+  assert.equal(cold.tag, 'Khối lạnh', 'ô lạnh phải được đánh dấu lạnh');
+  assert.equal(warm.tag, 'Khối nóng', 'ô nóng phải được đánh dấu nóng');
+  assert.ok(cold.dT < 0 && warm.dT > 0, 'độ lệch phải đúng dấu');
+  assert.equal(E.classifyCell({ t850: null, thick: null }, g.mean, 0).tag, undefined, 'ô thiếu dữ liệu thì không đoán');
+});
+check('gió bar: số đầu đúng quy ước 10 km/h', () => {
+  assert.equal(E.windBarb(5, 90).level, 0, 'dưới 10 km/h: không đầu');
+  assert.equal(E.windBarb(25, 0).level, 2, '25 km/h: hai đầu');
+  const b = E.windBarb(45, 350);
+  assert.equal(b.level, 4, '45 km/h: bốn đầu');
+  assert.equal(b.half, 2, 'bốn đầu = hai cặp');
+  assert.equal(b.dirDeg, 350, 'hướng chuẩn hoá về 0–360');
+  assert.equal(E.windBarb(360, 0).dirDeg, 0, '360 độ phải về 0');
+  assert.equal(E.windBarb(null, 0), null, 'thiếu tốc độ thì trả null');
+});
+check('giao diện: có nút GPS, lớp khối khí trên radar và bảng mực nước', () => {
+  for (const id of ['geoBtn', 'geoNote', 'airGridToggle', 'airGridMeta', 'airGridNote', 'airLegend', 'riverLevels', 'riverNameMeta']) {
+    assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);
+  }
+  assert.ok(!/mực nước[^.]{0,60}\bmet\b/i.test(html), 'không được hứa mực nước đo được');
+  assert.ok(/số đo chính thức|đường đo đạc/i.test(html), 'phải nói rõ mực nước là số quy ước cần đường đo đạc');
+  assert.ok(html.includes('GPS'), 'phải nói rõ dùng GPS');
+  assert.ok(/https/i.test(html), 'phải nhắc yêu cầu https cho GPS');
+  const app = readFileSync(new URL('./dist/app.js', import.meta.url), 'utf8');
+  // Rút giá trị trước khi lọc: lọc trực tiếp trên cột giữ mảng và meanS trả null.
+  assert.ok(/map\(c => \(c \? c\[i\] : null\)\)\.filter\(E\.finite\)/.test(app),
+    'phải rút giá trị trước khi lọc khi gộp nhiều hệ thống');
 });
 check('lớp khối khí và sông có mặt, ghi rõ giới hạn nguồn số liệu', () => {
   for (const id of ['airMassBox', 'trajectory', 'trajNote', 'riverList', 'riverChart', 'massMeta', 'tcList', 'tcMeta']) {

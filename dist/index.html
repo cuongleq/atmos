@@ -2328,26 +2328,30 @@ function weatherFamily(code) {
 async function api(base, params, proxyLevel = 0) {
   let url = base + '?' + new URLSearchParams(params);
   if (proxyLevel === 1) {
-    url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    url = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url);
   } else if (proxyLevel === 2) {
-    url = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    url = 'https://thingproxy.freeboard.io/fetch/' + encodeURIComponent(url);
   }
 
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(45000) });
+    // Nếu proxy bị Open-Meteo chặn (trả về 403), ném lỗi để thử proxy tiếp theo
+    if (!r.ok && proxyLevel > 0) throw new Error('Proxy failed');
+    
     const j = await r.json();
     if (!r.ok || j.error) {
       if (r.status === 429 && proxyLevel < 2) {
-        console.warn(`Rate limit hit (Proxy Level ${proxyLevel}). Retrying via proxy...`);
         return api(base, params, proxyLevel + 1);
       }
       throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);
     }
     return j;
   } catch (e) {
-    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
+    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('Proxy failed') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
       return api(base, params, proxyLevel + 1);
     }
+    // Nếu mọi proxy đều thất bại hoặc bị chặn, trả về lỗi 429 gốc để UI báo đúng
+    if (proxyLevel > 0) throw new Error('429 Rate limit exceeded');
     throw e;
   }
 }

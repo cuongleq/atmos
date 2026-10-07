@@ -7,13 +7,16 @@ export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const RAW = path.join(ROOT, 'raw');
 export const DIST = path.join(ROOT, 'dist');
 
-// Six Vietnamese locations chosen for climatic spread:
+// Eight Vietnamese locations chosen for climatic spread:
 // southern delta, northern delta, central coast, highland,
-// Mekong delta and south-central coast. utcOffset 7 puts the diurnal harmonics
-// in local solar time, which is where the daily bias cycle actually lives.
+// Mekong delta, south-central coast, post-merger Dak Lak highland and
+// Song Cau ward on the south-central coast. utcOffset 7 puts the diurnal
+// harmonics in local solar time, which is where the daily bias cycle lives.
 export const LOCATIONS = [
   { id: 'hcm', name: 'TP. Hồ Chí Minh', lat: 10.8231, lon: 106.6297, utcOffset: 7 },
   { id: 'hanoi', name: 'Hà Nội', lat: 21.0285, lon: 105.8542, utcOffset: 7 },
+  { id: 'daklak', name: 'Đắk Lắk', lat: 12.6675, lon: 108.0378, utcOffset: 7 },
+  { id: 'songcau', name: 'P. Sông Cầu', lat: 13.4556, lon: 109.2235, utcOffset: 7 },
   { id: 'danang', name: 'Đà Nẵng', lat: 16.0544, lon: 108.2022, utcOffset: 7 },
   { id: 'dalat', name: 'Đà Lạt', lat: 11.9469, lon: 108.4583, utcOffset: 7 },
   { id: 'cantho', name: 'Cần Thơ', lat: 10.0452, lon: 105.7469, utcOffset: 7 },

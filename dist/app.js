@@ -169,11 +169,23 @@ function activeTimes(base) {
   return h.time.slice(idx, idx + 168);
 }
 
+function menuPlaces() {
+  return [...report.locations, ...(report.pinnedPlaces || [])];
+}
+
 function quickRender() {
-  $('quick').innerHTML = report.locations
-    .map(l => `<button data-city="${l.id}" class="${place.id === l.id ? 'selected' : ''}">${esc(l.name)}</button>`).join('');
+  $('quick').innerHTML = menuPlaces()
+    .map(l => {
+      const pinned = !(report.pinnedPlaces || []).length ? '' : ((report.pinnedPlaces || []).some(p => p.id === l.id)
+        ? ' data-pinned="1" title="Chưa có hiệu chỉnh riêng — dự báo trung bình nhiều mô hình"'
+        : ' title="Đã có hiệu chỉnh riêng"');
+      return `<button data-city="${l.id}" class="${place.id === l.id ? 'selected' : ''}"${pinned}>${esc(l.name)}</button>`;
+    }).join('');
   $('quick').querySelectorAll('button').forEach(b => {
-    b.onclick = () => { place = { ...report.locations.find(l => l.id === b.dataset.city) }; loadForecast(); };
+    b.onclick = () => {
+      const found = menuPlaces().find(l => l.id === b.dataset.city);
+      if (found) { place = { ...found }; loadForecast(); }
+    };
   });
 }
 
@@ -1014,6 +1026,8 @@ const NCHMF_REGIONS = {
   cantho: ['CẦN THƠ', 'HẬU GIANG', 'TÂY NAM BỘ', 'ĐỒNG BẰNG SÔNG CỬU LONG'],
   hcm: ['HỒ CHÍ MINH', 'NAM BỘ', 'ĐÔNG NAM BỘ'],
   nhatrang: ['NHA TRANG', 'KHÁNH HÒA', 'NAM TRUNG BỘ', 'PHÚ YÊN', 'NINH THUẬN'],
+  daklak: ['ĐẮK LẮK', 'BUÔN MA THUỘT', 'TÂY NGUYÊN'],
+  songcau: ['SÔNG CẦU', 'PHÚ YÊN', 'NAM TRUNG BỘ'],
 };
 
 /** Mọi cảnh báo còn hiệu lực trong ngày trên toàn quốc, kèm chuyên mục. */

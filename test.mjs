@@ -842,6 +842,15 @@ check('bản tin chính thức NCHMF được nhúng và hiển thị', () => { 
   const nchmf = JSON.parse(m[1]);
   assert.ok(Array.isArray(nchmf.categories), 'nchmf phải có categories');
 });
+check('menu ghim đủ địa điểm đã cấu hình (kể cả chờ hiệu chỉnh)', () => {
+  const cfgIds = LOCATIONS.map(l => l.id);
+  const haveIds = [...report.locations.map(l => l.id), ...(report.pinnedPlaces || []).map(p => p.id)];
+  for (const id of cfgIds) assert.ok(haveIds.includes(id), 'menu thiếu: ' + id);
+  for (const id of ['daklak', 'songcau']) {
+    assert.ok(haveIds.includes(id), 'menu thiếu điểm ghim: ' + id);
+    assert.ok(html.includes(id === 'daklak' ? 'Đắk Lắk' : 'Sông Cầu'), 'thiếu tên điểm ghim');
+  }
+});
 check('app.js truyền đúng gói hiệu chỉnh vào engine (hồi quy lỗi found.calibration)', () => {
   const app = readFileSync(new URL('./dist/app.js', import.meta.url), 'utf8');
   // calibrationFor trả về { calib, ... } nên mọi chỗ dùng phải là found.calib.

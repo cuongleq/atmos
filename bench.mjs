@@ -327,6 +327,10 @@ const report = {
   },
   pooled,
   locations,
+  // Địa điểm trong cấu hình nhưng chưa đủ dữ liệu để hiệu chỉnh: menu vẫn ghim
+  // để xem dự báo trung bình nhiều mô hình, tự chuyển sang locations khi đủ.
+  pinnedPlaces: LOCATIONS.filter(l => !locations.some(x => x.id === l.id))
+    .map(l => ({ id: l.id, name: l.name, lat: l.lat, lon: l.lon, utcOffset: l.utcOffset })),
   errors,
 };
 

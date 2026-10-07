@@ -677,13 +677,15 @@ async function loadMonthCal(y, m) {
       if (iso < today) {
         const o = monthObs[iso];
         cells += `<div class="mday past" data-day="${iso}"${o ? ` title="${iso}: cao nhất ${fmt(o.tmax, 1)}°C, thấp nhất ${fmt(o.tmin, 1)}°C, tổng mưa ${fmt(o.psum, 1)} mm (ERA5)"` : ''}><span class="mday-n">${day}</span>` +
-          (o ? `<span class="mday-t">${fmt(o.tmax, 0)}°/${fmt(o.tmin, 0)}°</span><span class="mday-p">${fmt(o.psum, 1)} mm</span>`
+          // Nhiệt thấp và đơn vị "mm" là các span riêng: màn hình nhỏ bỏ chúng ra
+          // để ô lịch không bị cắt chữ, màn lớn thì hiện như cũ.
+          (o ? `<span class="mday-t">${fmt(o.tmax, 0)}°<span class="mday-lo">/${fmt(o.tmin, 0)}°</span></span><span class="mday-p">${fmt(o.psum, 1)}<span class="unit"> mm</span></span>`
             : '<span class="mday-p">chưa có</span>') + '</div>';
       } else if (fc[iso]) {
         const f = fc[iso];
         const risky = (f.psum ?? 0) >= 25 || (f.gust ?? 0) >= 60;
         cells += `<div class="mday forecast${risky ? ' alert' : ''}${selectedDay === iso ? ' selected' : ''}" data-day="${iso}" role="button" tabindex="0" title="${iso}: cao nhất ${fmt(f.tmax, 0)}°C, thấp nhất ${fmt(f.tmin, 0)}°C, mưa ${fmt(f.psum, 1)} mm, giật ${fmt(f.gust, 0)} km/h — bấm để xem chi tiết"><span class="mday-n">${day}</span>` +
-          `<span class="mday-t">${fmt(f.tmax, 0)}°/${fmt(f.tmin, 0)}°</span><span class="mday-p">${weatherFamily(f.code)} ${fmt(f.psum, 1)} mm</span></div>`;
+          `<span class="mday-t">${fmt(f.tmax, 0)}°<span class="mday-lo">/${fmt(f.tmin, 0)}°</span></span><span class="mday-p">${weatherFamily(f.code)} ${fmt(f.psum, 1)}<span class="unit"> mm</span></span></div>`;
       } else {
         cells += `<div class="mday out"><span class="mday-n">${day}</span><span class="mday-p">ngoài tầm</span></div>`;
       }

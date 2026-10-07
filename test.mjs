@@ -21,7 +21,16 @@ const near = (a, b, tol, msg) => assert.ok(
   `${msg ?? 'giá trị'} ${a} vs ${b} (dung sai ${tol})`);
 
 let passed = 0;
-const check = (name, fn) => { fn(); passed++; console.log(`  ok  ${name}`); };
+const failures = [];
+// Khong dung fail ngay: mot lan chay phai cho ra day du danh sach loi, neu khong
+// chi mot thu muc thieu du lieu raw/ se che mat cac loi that su khac.
+const check = (name, fn) => {
+  try { fn(); passed++; console.log(`  ok  ${name}`); }
+  catch (e) {
+    failures.push({ name, message: e && e.message ? e.message : String(e) });
+    console.log(`  FAIL ${name}\n         ${e && e.message ? e.message : e}`);
+  }
+};
 
 console.log('\n1. Số học nền');
 check('mean/varS/quantile bỏ qua giá trị thiếu', () => {
@@ -654,7 +663,7 @@ check('báo cáo dùng đúng kỳ một năm và khoảng cách ly 7 ngày', ()
   assert.equal(report.models.length, 7);
   assert.deepEqual(report.leads, [1, 2, 3, 5, 7]);
 });
-check('sáu địa điểm đều có kết quả và mỗi biến x 5 thời hạn', () => {
+check('mọi địa điểm đều có kết quả và mỗi biến x 5 thời hạn', () => {
   assert.equal(report.locations.length, LOCATIONS.length,
     `chỉ có ${report.locations.length}/${LOCATIONS.length} địa điểm. Cần chạy node collect.mjs cho tới khi đủ ${LOCATIONS.length} tệp ERA5.`);
   for (const l of report.locations) {
@@ -857,6 +866,47 @@ check('app.js truyền đúng gói hiệu chỉnh vào engine (hồi quy lỗi f
   assert.ok(!/found\.calibration\b/.test(app), 'app.js còn dùng found.calibration (sai key, engine nhận undefined)');
   assert.ok(/calib:\s*found\.calib\b/.test(app), 'thiếu truyền calib: found.calib vào E.calibrate');
 });
+check('giao diện co giãn được trên máy tính lẫn điện thoại', () => {
+  const css = readFileSync(new URL('./dist/style.css', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('./dist/app.js', import.meta.url), 'utf8');
+  // Lý do gốc của tràn ngang: 1fr = minmax(auto,1fr) nên track không co nhỏ được
+  // dưới min-content. Trong CSS chỉ khai báo cuối cùng của một thuộc tính mới
+  // thắng, nên phải tìm đúng khai báo đó chứ không phải khối xuất hiện cuối.
+  const lastDecl = (sel, prop) => {
+    // Bỏ chú thích trước: dấu phẩy trong /* ... */ sẽ dính vào selector và làm
+    // hỏng việc tách danh sách chọn.
+    const parts = css.replace(/\/\*[\s\S]*?\*\//g, '').split(/[{}]/);
+    let value = null;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!parts[i].split(',').map(s => s.trim()).includes(sel)) continue;
+      const body = parts[i + 1];
+      const p = body.indexOf(prop + ':');
+      if (p < 0) continue;
+      value = body.slice(p + prop.length + 1).split(';')[0].trim();
+    }
+    return value;
+  };
+  assert.ok(css.includes('minmax(0,1fr)'), 'thiếu minmax(0,1fr) cho lưới');
+  for (const sel of ['.month-cal', '.days', '.metric-grid', '.current-stats']) {
+    const v = lastDecl(sel, 'grid-template-columns');
+    assert.ok(v && v.includes('minmax(0,1fr)'), sel + ' còn dùng 1fr dễ tràn ngang: ' + v);
+  }
+  // Bảng và dải giờ phải cuộn ngang thay vì bị bóp.
+  assert.ok(css.includes('.table-wrap table{min-width:'), 'thiếu min-width để bảng cuộn ngang');
+  assert.ok(/overflow-x:auto/.test(css), 'thiếu cuộn ngang cho bảng/dải giờ');
+  assert.ok(css.includes('th:first-child') && css.includes('position:sticky'), 'thiếu ghim cột đầu khi cuộn bảng');
+  // Ô lịch tháng 7 cột trên màn 360px: nhiệt thấp tách dòng, bỏ đơn vị mm.
+  assert.ok(app.includes('mday-lo'), 'thiếu dòng nhiệt thấp riêng cho màn nhỏ');
+  assert.ok(app.includes('class="unit"'), 'thiếu span đơn vị để ẩn trên màn nhỏ');
+  assert.ok(css.includes('.mday .unit{display:none}'), 'chưa ẩn đơn vị mm trên màn nhỏ');
+  // Radar không chiếm cả màn hình điện thoại.
+  assert.ok(/\.radar-map\{height:3\d\dpx\}/.test(css), 'radar chưa có chiều cao riêng cho màn nhỏ');
+  // Vùng chạm tối thiểu cho thiết bị chạm.
+  assert.ok(css.includes('@media(pointer:coarse)'), 'thiếu vùng chạm 44px cho thiết bị chạm');
+  // Không được dùng chiều rộng cứng vượt màn hình điện thoại (bỏ qua max/min).
+  assert.ok(/(?<![-\w])width:\s*(1[0-9]{3}|[5-9]\d\d)px/.test(css) === false,
+    'có chiều rộng cứng quá rộng cho điện thoại');
+});
 check('giao diện dự báo dài hạn và tìm kiếm đa nguồn có mặt', () => {
   for (const id of ['searchResults', 'monthCal', 'monthTitle', 'monthMeta', 'dayDetail', 'dayDetailTitle', 'dayDetailMeta', 'disasterPlaceNote', 'windyLink', 'aqiNow', 'aqiStrip', 'aqiPollutants', 'aqiAdvice', 'aqiMeta']) {
     assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);
@@ -876,8 +926,13 @@ check('giao diện dự báo dài hạn và tìm kiếm đa nguồn có mặt', 
   assert.ok(html.includes('<h1>64 biến.'), 'tiêu đề chính phải là "64 biến."');
 });
 
-console.log(`\nPASS — ${passed} nhóm kiểm thử đã qua.\n`);
-console.log('Tóm tắt độ chính xác trên tập kiểm tra đóng băng:');
+console.log(`\n${failures.length ? 'FAIL' : 'PASS'} — ${passed} nhóm kiểm thử đã qua, ${failures.length} lỗi.`);
+if (failures.length) {
+  console.log('Danh sách lỗi:');
+  for (const f of failures) console.log(`  - ${f.name}\n      ${f.message}`);
+}
+process.exitCode = failures.length ? 1 : 0;
+console.log('\nTóm tắt độ chính xác trên tập kiểm tra đóng băng:');
 console.log(`  ${report.headline.evaluated} phép chấm, ${report.headline.betterThanEqualWeight} tốt hơn trung bình đều`);
 console.log(`  ${report.headline.betterThanBestSingle} tốt hơn hệ thống đơn tốt nhất`);
 console.log(`  cải thiện RMSE trung bình: ${(report.headline.meanSkillVsEqualWeight * 100).toFixed(2)}% so với trung bình đều, ${(report.headline.meanSkillVsBestSingle * 100).toFixed(2)}% so với hệ thống tốt nhất`);

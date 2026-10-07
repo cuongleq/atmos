@@ -261,7 +261,393 @@ async function loadForecast() {
   renderNchmf();
   loadMonthCal();
   loadAqi();
+  loadAirMassAndRivers();
   syncDisasterToPlace();
+}
+
+/* ---------- air mass, trajectory and rivers ---------- */
+
+// Các biến mức áp lực 850/500 hPa. Đây là mặt đất điều khiển không khí: nhiệt độ
+// và độ dày cột không khí cho biết khối không là lạnh hay nóng, và gió 850 hPa
+// cho biết nó đi đâu tới.
+const LEVEL_VARS = [
+  'temperature_850hPa', 'geopotential_height_850hPa', 'geopotential_height_500hPa',
+  'wind_speed_850hPa', 'wind_direction_850hPa', 'relative_humidity_850hPa',
+];
+const LEVEL_MODELS = MODELS.map(m => m.id);
+
+let levelsToken = 0;
+let levels = null;
+let rivers = null;
+let riverSel = 0;
+
+/**
+ * Lấy các trường mức áp lực cho cả bảy hệ thống trong một request. Open-Meteo
+ * tra ve mot doi tuong duy nhat voi ten bien co hau to ten mo hinh.
+ */
+async function fetchLevels() {
+  const u = new URLSearchParams({
+    latitude: place.lat, longitude: place.lon,
+    hourly: LEVEL_VARS.join(','),
+    models: LEVEL_MODELS.join(','),
+    past_days: 7, forecast_days: 7, timezone: 'auto',
+  });
+  const r = await fetch('https://api.open-meteo.com/v1/forecast?' + u, { signal: AbortSignal.timeout(45000) });
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.reason || 'HTTP ' + r.status);
+  const hourly = j.hourly || {};
+  const series = {};
+  for (const id of LEVEL_MODELS) {
+    const cols = {};
+    for (const v of LEVEL_VARS) cols[v] = hourly[v + '_' + id] || null;
+    if (Object.values(cols).some(c => c && c.length)) series[id] = cols;
+  }
+  return { time: hourly.time || [], series, offsetSeconds: j.utc_offset_seconds || 0 };
+}
+
+/**
+ * Chỉ số của giờ hiện tại trong chuỗi giờ. Chuỗi của Open-Meteo bắt đầu lúc
+ * 00:00 tại địa điểm và chạy tới cuối chu kỳ dự báo, nên "hiện tại" nằm ở đầu
+ * chuỗi chứ không phải ở cuối. Dùng mốc lệch giờ của chính nguồn để tìm.
+ */
+function levelNowIndex() {
+  if (!levels || !levels.time.length) return null;
+  const local = new Date(Date.now() + (levels.offsetSeconds || 0) * 1000);
+  const iso = local.toISOString().slice(0, 13) + ':00';
+  let i = levels.time.indexOf(iso);
+  if (i >= 0) return i;
+  // Không trùng khung giờ thì lấy chỉ số giữa hai mốc liền kề.
+  let best = 0, bestGap = Infinity;
+  const t0 = local.getTime();
+  for (let k = 0; k < levels.time.length; k++) {
+    const gap = Math.abs(new Date(levels.time[k] + 'Z').getTime() - t0);
+    if (gap < bestGap) { bestGap = gap; best = k; }
+  }
+  return best;
+}
+
+/** Chuoi da ghep san cho mot bien, dung chung moc thoi gian cua ca tap. */
+function levelSeries(id, variable, time) {
+  const col = levels?.series?.[id]?.[variable];
+  if (!col) return new Array(time.length).fill(null);
+  const idx = new Map(levels.time.map((t, i) => [t, i]));
+  return time.map(t => {
+    const k = idx.get(t);
+    return k == null ? null : col[k];
+  });
+}
+
+/** Giá trị trung bình của nhiều hệ thống tại một chỉ số thời gian. */
+function levelMean(time, variable) {
+  const ids = Object.keys(levels?.series || {});
+  if (!ids.length) return null;
+  const cols = ids.map(id => levelSeries(id, variable, time));
+  return time.map((_, i) => {
+    let s = 0, n = 0;
+    for (const c of cols) if (E.finite(c[i])) { s += c[i]; n++; }
+    return n ? s / n : null;
+  });
+}
+
+const COMPASS8 = ['Bắc', 'Đông bắc', 'Đông', 'Đông nam', 'Nam', 'Nam tây nam', 'Tây', 'Tây bắc'];
+const compass = d => E.finite(d) ? COMPASS8[Math.round(((d % 360) + 360) % 360 / 45) % 8] : '—';
+
+function renderAirMass() {
+  const box = $('airMassBox');
+  if (!box) return;
+  if (!levels) { box.innerHTML = '<p class="muted">Chưa có dữ liệu mức áp lực.</p>'; return; }
+  const time = levels.time;
+  const n = time.length;
+  const now = levelNowIndex();
+  if (now == null || now < 0) { box.innerHTML = '<p class="muted">Không xác định được giờ hiện tại trong chuỗi dữ liệu.</p>'; return; }
+  const ids = Object.keys(levels.series);
+  const t850 = levelMean(time, 'temperature_850hPa');
+  const thick = time.map((_, i) => E.thickness(
+    levelMean(time, 'geopotential_height_500hPa')[i], levelMean(time, 'geopotential_height_850hPa')[i]));
+  const rh850 = levelMean(time, 'relative_humidity_850hPa');
+  const dir850 = levelMean(time, 'wind_direction_850hPa');
+  const spd850 = levelMean(time, 'wind_speed_850hPa');
+
+  // Chuỗi lịch sử: 72 giờ phân tích ngay trước hiện tại làm đường cơ sở để
+  // phân loại. Chỉ dùng các giờ đã qua, không đưa phần dự báo vào chuẩn.
+  const baseFrom = Math.max(0, now - 72);
+  const past = t850.slice(baseFrom, now).filter(E.finite);
+  const tBase = E.meanS(past);
+  const thPast = thick.slice(baseFrom, now).filter(E.finite);
+  const thBase = E.meanS(thPast);
+  const am = E.airMass({
+    t850: t850[now], t850Baseline: tBase, thick: thick[now], thickBaseline: thBase,
+    rh850: rh850[now], source: dir850[now],
+  });
+  // Chỉ số giờ dự báo tiếp theo, để nói "trong 24 giờ tới" có thể lật ngược.
+  const next24 = { t850: t850.slice(now, now + 24), thick: thick.slice(now, now + 24) };
+  const dT24 = E.finite(t850[now]) ? E.meanS(next24.t850.filter(E.finite)) - t850[now] : null;
+
+  // Độ lệch giữa các hệ thống: bao nhiêu hệ thống đồng ý về phân loại.
+  const perModel = ids.map(id => {
+    const col = levelSeries(id, 'temperature_850hPa', time);
+    const z5 = levelSeries(id, 'geopotential_height_500hPa', time);
+    const z8 = levelSeries(id, 'geopotential_height_850hPa', time);
+    const th = E.thickness(z5[now], z8[now]);
+    return { id, t850: col[now], th, tag: E.airMass({ t850: col[now], t850Baseline: tBase, thick: th, thickBaseline: thBase, rh850: levelSeries(id, 'relative_humidity_850hPa', time)[now], source: levelSeries(id, 'wind_direction_850hPa', time)[now] }) };
+  });
+  const votes = {};
+  for (const p of perModel) if (p.tag) votes[p.tag.tag] = (votes[p.tag.tag] || 0) + 1;
+  const agree = Object.entries(votes).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+  const spreadT = Math.sqrt(E.varS(perModel.map(p => p.t850).filter(E.finite))) || 0;
+
+  const front = E.frontalPassage({ dir850: dir850.slice(0, now + 1), t850: t850.slice(0, now + 1), hoursBack: 12 });
+
+  const tagClass = am ? { cold: 'cold', warm: 'warm', cool: 'cool', mild: 'mild', neutral: 'neutral' }[am.tone] : 'neutral';
+  box.innerHTML =
+    `<div class="mass-head">
+       <div><span class="small">PHÂN LOẠI KHỐI KHÔNG</span>
+         <div class="mass-tag ${tagClass}">${am ? am.tag : '—'}</div></div>
+       <div class="mass-consensus"><strong>${agree[1]}/${ids.length}</strong><span class="small">hệ thống đồng ý</span></div>
+     </div>
+     <div class="metric-grid compact" style="margin:14px 0 0">
+       <div class="metric"><span class="small">Nhiệt độ 850 hPa</span><strong>${E.finite(t850[now]) ? fmt(t850[now], 1) : '—'}<em>°C</em></strong>
+         <span class="small">${E.finite(t850[now] - tBase) ? (t850[now] - tBase >= 0 ? '+' : '') + fmt(t850[now] - tBase, 1) + '° so với 7 ngày qua' : '—'}</span></div>
+       <div class="metric"><span class="small">Độ dày cột 500–850</span><strong>${E.finite(thick[now]) ? fmt(thick[now] / 100, 1) : '—'}<em>đạm</em></strong>
+         <span class="small">${E.finite(thick[now] - thBase) ? (thick[now] - thBase >= 0 ? '+' : '') + fmt(thick[now] - thBase, 0) + ' m so với 7 ngày qua' : '—'}</span></div>
+       <div class="metric"><span class="small">Gió 850 hPa</span><strong>${E.finite(dir850[now]) ? fmt(dir850[now], 0) + '<em>°</em>' : '—'}</strong>
+         <span class="small">${E.finite(dir850[now]) ? 'từ phía ' + compass(dir850[now]) + (am?.advection ? ' · ' + am.advection : '') : '—'}</span></div>
+       <div class="metric"><span class="small">Độ ẩm 850 hPa</span><strong>${E.finite(rh850[now]) ? fmt(rh850[now], 0) + '<em>%</em>' : '—'}</strong>
+         <span class="small">${am?.moisture || '—'}</span></div>
+     </div>` +
+    `<p class="small" style="margin-top:12px">${ids.length ? 'Độ lệch giữa ' + ids.length + ' hệ thống ở 850 hPa: <strong>' + fmt(spreadT, 2) + '°C</strong>. ' : ''}` +
+    (front ? `Phat hien <strong>${front.kind.toLowerCase()}</strong>: gio 850 hPa xoay ${fmt(front.windShift, 0)}° so voi 12 gio truoc, nhiet do thay doi ${fmt(front.dT, 1)}°C.` : 'Không phát hiện mặt lạnh hay mặt ấm trong 12 giờ vừa rồi.') +
+    ` Độ dày cột là đại lượng phổ thông cho nhiệt độ căn bản của cột không khí: thấp hơn là lạnh hơn, cao hơn là nóng hơn.</p>`;
+}
+
+/** Vẽ quạt đường đi khối không: những giờ sau, những giờ trước, theo từng mô hình. */
+function renderTrajectory() {
+  const host = $('trajectory');
+  if (!host) return;
+  if (!levels) { host.innerHTML = '<p class="muted">Chưa có dữ liệu mức áp lực.</p>'; return; }
+  const time = levels.time;
+  const n = time.length;
+  const now = levelNowIndex();
+  if (now == null || now < 0) { host.innerHTML = '<p class="muted">Không xác định được giờ hiện tại.</p>'; return; }
+  const ids = Object.keys(levels.series);
+  if (!ids.length) { host.innerHTML = '<p class="muted">Không có hệ thống nào trả dữ liệu.</p>'; return; }
+
+  const backH = Math.min(24, now);
+  const fwdH = Math.min(48, n - 1 - now);
+  const runs = ids.map(id => {
+    const spd = levelSeries(id, 'wind_speed_850hPa', time);
+    const dir = levelSeries(id, 'wind_direction_850hPa', time);
+    // Lấy giờ ngay TRƯỚC và ngay SAU hiện tại; không dùng đầu/cuối chuỗi.
+    const uB = [], vB = [], uF = [], vF = [];
+    for (let h = backH; h >= 1; h--) {
+      const w = E.toUms(spd[now - h], dir[now - h]); uB.push(w.u); vB.push(w.v);
+    }
+    for (let h = 0; h < fwdH; h++) {
+      const w = E.toUms(spd[now + h], dir[now + h]); uF.push(w.u); vF.push(w.v);
+    }
+    return {
+      id,
+      back: E.trajectory({ lat: place.lat, lon: place.lon, u: uB, v: vB, hours: backH, stepKm: 20, sign: -1 }),
+      fwd: E.trajectory({ lat: place.lat, lon: place.lon, u: uF, v: vF, hours: fwdH, stepKm: 20, sign: 1 }),
+    };
+  }).filter(r => r.back.length > 2 && r.fwd.length > 2);
+
+  if (!runs.length) { host.innerHTML = '<p class="muted">Dữ liệu gió 850 hPa không đủ để vẽ đường đi.</p>'; return; }
+
+  const pts = [];
+  for (const r of runs) { pts.push(...r.back.slice(1), ...r.fwd.slice(1)); }
+  const lats = pts.map(p => p.lat), lons = pts.map(p => p.lon);
+  let lat0 = (Math.min(...lats) + Math.max(...lats)) / 2;
+  let lat1 = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const lon0 = Math.min(...lons), lon1 = Math.max(...lons);
+  if (lon1 - lon0 < 2) { lon0 -= 1; lon1 += 1; }
+  if (lat1 - lat0 < 2) { lat0 -= 1; lat1 += 1; }
+  const W = 640, H = 420, PAD = 26;
+  const sx = lon => PAD + (lon - lon0) / (lon1 - lon0) * (W - PAD * 2);
+  const sy = lat => PAD + (lat1 - lat) / (lat1 - lat0) * (H - PAD * 2);
+  const path = legs => legs.map((p, i) => (i ? 'L' : 'M') + sx(p.lon).toFixed(1) + ' ' + sy(p.lat).toFixed(1)).join(' ');
+
+  const backEnds = runs.map(r => r.back[r.back.length - 1]);
+  const srcKm = E.meanS(backEnds.map(p => E.distanceKm(place, p))) || 0;
+  const srcBearing = E.bearingDeg(place, backEnds[0]);
+
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Quạt đường đi khối không ở 850 hPa">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#eef3f7"/>
+    ${[0.25, 0.5, 0.75].map(f => `<line x1="${PAD}" y1="${PAD + f * (H - PAD * 2)}" x2="${W - PAD}" y2="${PAD + f * (H - PAD * 2)}" stroke="#cfdbe4"/>`).join('')}
+    ${[0.25, 0.5, 0.75].map(f => `<line x1="${PAD + f * (W - PAD * 2)}" y1="${PAD}" x2="${PAD + f * (W - PAD * 2)}" y2="${H - PAD}" stroke="#cfdbe4"/>`).join('')}
+    ${runs.map((r, i) => `<path d="${path(r.fwd)}" fill="none" stroke="#c0392b" stroke-width="1.3" opacity="${0.25 + 0.5 * (i + 1) / runs.length}"/>
+      <path d="${path(r.back)}" fill="none" stroke="#2a5f96" stroke-width="1.3" stroke-dasharray="4 3" opacity="${0.25 + 0.5 * (i + 1) / runs.length}"/>`).join('')}
+    <circle cx="${sx(place.lon)}" cy="${sy(place.lat)}" r="5" fill="#101f2d" stroke="#fff" stroke-width="2"/>
+    <text x="${PAD + 4}" y="${PAD + 14}" class="tvb">Hướng tuyến tới</text>
+    <text x="${PAD + 4}" y="${PAD + 30}" class="tvb">điểm quan sát</text>
+  </svg>`;
+  host.innerHTML = svg +
+    `<div class="legend"><span><i style="background:#c0392b"></i>đi tới (tối đa ${fwdH} giờ)</span><span><i style="background:#2a5f96"></i>đi từ (tối đa ${backH} giờ)</span><span>${runs.length} hệ thống vẽ chồng nhau; độ rộng quạt là mức bất đồng</span></div>`;
+
+  $('trajNote').innerHTML = `Khối không khí nơi bạn đang xét, ở tầng 850 hPa (khoảng 1,5 km), về từ phía <strong>${compass(srcBearing)}</strong> cách điểm quan sát khoảng <strong>${fmt(srcKm, 0)} km</strong> trong ${backH} giờ trước. Bản đồ là hình chiếu thẳng, dùng gió theo giờ của từng mô hình nên độ rộng quạt chính là mức bất đồng giữa các hệ thống.`;
+}
+
+/* ---------- rivers (GloFAS via Open-Meteo Flood API) ---------- */
+
+// GloFAS trả về con sông lớn nhất trong ô lưới 5 km. Tại Việt Nam các con sông
+// chính khác nhau nằm ở các ô khác nhau, nên quét một lưới địa lý 5x5 quanh điểm
+// hiện tại và gom theo ô lưới thực trả về để không đếm trùng.
+/**
+ * Chạy các việc theo giới hạn số request cùng một lúc. Browser chỉ mở ít kết
+ * nối HTTP/1.1 mỗi host nên đẩy 25 request một lúc sẽ bị chờ đợi và phần lớn
+ * trả về lỗi, không phải do nguồn dữ liệu hết hạn mức.
+ */
+async function pLimit(items, limit, worker) {
+  const out = new Array(items.length);
+  let next = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (next < items.length) {
+      const i = next++;
+      try { out[i] = await worker(items[i], i); }
+      catch { out[i] = null; }
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+async function fetchRivers() {
+  const offs = [-0.2, -0.1, 0, 0.1, 0.2];
+  const jobs = [];
+  for (const dy of offs) for (const dx of offs) jobs.push({ lat: place.lat + dy, lon: place.lon + dx });
+  const out = await pLimit(jobs, 4, async p => {
+    const u = new URLSearchParams({
+      latitude: p.lat.toFixed(4), longitude: p.lon.toFixed(4),
+      daily: 'river_discharge,river_discharge_median,river_discharge_p25,river_discharge_p75',
+      past_days: 30, forecast_days: 7,
+    });
+    const j = await api('https://flood-api.open-meteo.com/v1/flood', u);
+    const q = j.daily.river_discharge || [];
+    const last = q.length - 1;
+    if (last < 0 || !E.finite(q[last])) return null;
+    return {
+      cell: { lat: j.latitude, lon: j.longitude },
+      km: E.round(E.distanceKm(place, { lat: j.latitude, lon: j.longitude }), 1),
+      time: j.daily.time,
+      q,
+      median: j.daily.river_discharge_median || [],
+      p25: j.daily.river_discharge_p25 || [],
+      p75: j.daily.river_discharge_p75 || [],
+    };
+  });
+  const byCell = new Map();
+  for (const r of out) {
+    if (!r) continue;
+    const key = r.cell.lat.toFixed(2) + ',' + r.cell.lon.toFixed(2);
+    if (!byCell.has(key)) byCell.set(key, r);
+  }
+  const list = [...byCell.values()].sort((a, b) => a.km - b.km);
+  // Chỉ hiện tối đa 12 con gần nhất; con lớn nhất được đánh dấu để phân biệt
+  // sông chính với kênh nhỏ.
+  const top = list.slice(0, 12);
+  // Danh dau con lon nhat TRONG SO DANG HIEN, vi chi do lai 12 con gan nhat.
+  let biggest = null;
+  for (const r of top) {
+    const v = r.median?.[r.median.length - 1] ?? r.q[r.q.length - 1];
+    if (E.finite(v) && (!biggest || v > biggest.v)) biggest = { v, km: r.km };
+  }
+  return top.map(r => ({ ...r, isLargest: !!biggest && Math.abs(r.km - biggest.km) < 0.05 }));
+}
+
+function riverRiskOf(r) {
+  const last = r.q.length - 1;
+  const recentWindow = r.q.slice(0, Math.max(1, r.q.length - 8));
+  const recent = E.meanS(recentWindow);
+  return E.riverRisk({
+    q: r.median?.[last] ?? r.q[last],
+    qP25: r.p25?.[last], qP75: r.p75?.[last],
+    recent,
+  });
+}
+
+function renderRivers() {
+  const box = $('riverList');
+  if (!box) return;
+  if (!rivers) { box.innerHTML = '<p class="muted">Đang tải lưu lượng sông…</p>'; return; }
+  if (!rivers.length) {
+    box.innerHTML = '<p class="muted">Không có con sông nào trong bán kính khoảng 30 km theo dữ liệu GloFAS 5 km. Các vùng ven biển phẳng thường rơi vào tình huống này.</p>';
+    return;
+  }
+  if (riverSel >= rivers.length) riverSel = 0;
+  box.innerHTML = rivers.map((r, i) => {
+    const k = riverRiskOf(r);
+    const tone = !k ? '' : (k.vsRecent >= 0.25 ? 'high' : k.vsRecent <= -0.25 ? 'low' : '');
+    return `<button class="river-card${i === riverSel ? ' selected' : ''}" data-river="${i}">
+      <span class="river-top"><strong>${fmt(r.km, 1)} km</strong><span class="small">${r.isLargest ? 'sông lớn nhất · ' : ''}${compass(E.bearingDeg(place, r.cell))}</span></span>
+      <span class="river-q">${k ? fmt(k.q, 1) : '—'}<em> m³/s</em></span>
+      <span class="river-bar"><i style="width:${Math.max(4, Math.min(100, k ? k.vsRecent * 100 + 50 : 50))}%" class="${tone}"></i></span>
+      <span class="small">${k && E.finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '% so với TB 30 ngày' : '—'}</span>
+    </button>`;
+  }).join('');
+  box.querySelectorAll('[data-river]').forEach(b => {
+    b.onclick = () => { riverSel = +b.dataset.river; renderRivers(); };
+  });
+  renderRiverChart();
+}
+
+/** Hydrograph: median + p25/p75 band for the selected river. */
+function renderRiverChart() {
+  const host = $('riverChart');
+  if (!host) return;
+  if (!rivers || !rivers.length) { host.innerHTML = '<p class="muted">Chọn một con sông.</p>'; return; }
+  const r = rivers[riverSel];
+  const q = r.median?.length === r.q.length && r.median.some(E.finite) ? r.median : r.q;
+  const n = q.length;
+  const lo = 0, hi = n - 1;
+  const vals = [];
+  for (let i = lo; i <= hi; i++) {
+    for (const c of [q, r.p25, r.p75]) if (E.finite(c?.[i])) vals.push(c[i]);
+  }
+  if (!vals.length) { host.innerHTML = '<p class="muted">Không có số liệu.</p>'; return; }
+  const vmax = Math.max(...vals) * 1.12 || 1;
+  const W = 720, H = 260, PAD = 40, PB = 46;
+  const sx = i => PAD + (i - lo) / (hi - lo) * (W - PAD * 2);
+  const sy = v => H - PB - (v / vmax) * (H - PAD - PB);
+  const fIdx = r.time.findIndex((t, i) => t >= (new Date()).toISOString().slice(0, 10));
+  const band = (i) => {
+    const a = r.p25?.[i], b = r.p75?.[i];
+    return E.finite(a) && E.finite(b) ? `<rect x="${sx(i) - 3}" y="${sy(b)}" width="6" height="${Math.max(1, sy(a) - sy(b))}" fill="#2a5f96" opacity=".18"/>` : '';
+  };
+  const line = q.map((v, i) => E.finite(v) ? (i === 0 ? 'M' : 'L') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1) : '').join('').replace(/M(?=[^L])/g, 'M');
+  const ticks = r.time.map((t, i) => (i % 7 === 0 ? `<text x="${sx(i)}" y="${H - 12}" class="tvb" text-anchor="middle">${t.slice(8)}/${t.slice(5, 7)}</text>` : '')).join('');
+  const cut = fIdx > 0 ? `<line x1="${sx(fIdx)}" y1="${PAD}" x2="${sx(fIdx)}" y2="${H - PB}" stroke="#b54ae0" stroke-dasharray="4 3"/><text x="${sx(fIdx) + 4}" y="${PAD + 12}" class="tvb">nay</text>` : '';
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Hydrograph">
+    <line x1="${PAD}" y1="${H - PB}" x2="${W - PAD}" y2="${H - PB}" stroke="#c7d2dc"/>
+    ${[0.25, 0.5, 0.75, 1].map(f => `<text x="${PAD - 6}" y="${sy(vmax * f) + 4}" class="tvb" text-anchor="end">${fmt(vmax * f, 0)}</text>`).join('')}
+    ${q.map((_, i) => band(i)).join('')}${cut}
+    <path d="${line}" fill="none" stroke="#2a5f96" stroke-width="2"/>
+    ${ticks}</svg>
+    <p class="small">Vạch xanh là lưu lượng trung vị; dải xanh nhạt là khoảng p25–p75 của 50 thành viên tổ hợp GloFAS, phản ánh mức chắc chắn của dòng chảy chứ không phải mực nước tính bằng mét. Nguồn: Global Flood Awareness System (GloFAS v4) qua Open-Meteo.</p>`;
+}
+
+async function loadAirMassAndRivers() {
+  const token = ++levelsToken;
+  levels = null; rivers = null;
+  const massBox = $('airMassBox'), riverBox = $('riverList');
+  if (massBox) massBox.innerHTML = '<p class="muted">Đang tải trường mức áp lực 850/500 hPa…</p>';
+  if (riverBox) riverBox.innerHTML = '<p class="muted">Đang quét lưu lượng các sông quanh đây…</p>';
+  const notes = [];
+  try {
+    levels = await fetchLevels();
+    if (token !== levelsToken) return;
+    renderAirMass();
+    renderTrajectory();
+  } catch (e) {
+    notes.push('Không lấy được trường mức áp lực: ' + esc(e.message));
+    if (massBox) massBox.innerHTML = '<p class="small">Không lấy được trường mức áp lực: ' + esc(e.message) + '</p>';
+  }
+  const rTok = token;
+  fetchRivers().then(r => {
+    if (rTok !== levelsToken) return;
+    rivers = r; renderRivers();
+  }).catch(() => { if (riverBox) riverBox.innerHTML = '<p class="small">Không lấy được dữ liệu sông.</p>'; });
+  const tn = $('massMeta');
+  if (tn) tn.textContent = notes.length ? notes.join(' ') : (levels ? `${levels.time.length} giờ · 7 hệ thống` : '—');
 }
 
 /* ---------- air quality (CAMS via Open-Meteo, no key, hourly) ---------- */
@@ -1634,6 +2020,78 @@ async function initRadar() {
   }
 }
 
+/* ---------- tropical cyclones (GDACS positions, not our track forecast) ---------- */
+
+const ALERT_RANK = { Green: 1, Orange: 2, Red: 3 };
+
+// GDACS tra ve mot diem cho moi "episode" (moi vi tri ba gio). Cac episode
+// cung lai duong da qua cua con xoay, nen ta ve duong nay va goi ro la
+// duong da qua chu khong phai duong do bao.
+async function loadTropicalCyclones() {
+  const box = $('tcList');
+  const meta = $('tcMeta');
+  if (!box) return;
+  box.innerHTML = '<p class="muted">Đang tải vị trí xoáy nhiệt đới…</p>';
+  const now = new Date();
+  const from = new Date(now.getTime() - 10 * 864e5).toISOString().slice(0, 10);
+  const to = new Date(now.getTime() + 6 * 864e5).toISOString().slice(0, 10);
+  try {
+    const r = await fetch(`https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?fromDate=${from}&toDate=${to}`, { signal: AbortSignal.timeout(30000) });
+    const j = await r.json();
+    if (j.error) throw new Error(j.reason || 'lỗi GDACS');
+    const byStorm = new Map();
+    for (const f of j.features || []) {
+      const p = f.properties || {};
+      // GDACS bo qua tham so loc eventtypes, phai tu loai lai phia may.
+      if (p.eventtype !== 'TC') continue;
+      const key = p.glide || p.eventname;
+      if (!byStorm.has(key)) byStorm.set(key, { name: p.name || p.eventname, url: p.url, track: [] });
+      const s = byStorm.get(key);
+      if (p.alertlevel && (!s.alertRank || (ALERT_RANK[p.alertlevel] || 0) > (ALERT_RANK[s.alertRank] || 0))) s.alertRank = p.alertlevel;
+      if (f.geometry && f.geometry.type === 'Point') {
+        s.track.push({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], t: p.fromdate });
+      }
+    }
+    const storms = [...byStorm.values()]
+      .map(s => {
+        s.track.sort((a, b) => String(a.t || '').localeCompare(String(b.t || '')));
+        const last = s.track[s.track.length - 1];
+        if (!last) return null;
+        // Huong tien gan nhat: vector giua hai vi tri gan nhat da biet.
+        let approach = null;
+        if (s.track.length >= 2) {
+          const a = s.track[s.track.length - 2], b = last;
+          approach = E.bearingDeg({ lat: a.lat, lon: a.lon }, b);
+        }
+        return {
+          ...s, last, approach,
+          km: E.round(E.distanceKm(place, last), 0),
+          bearing: E.bearingDeg(place, last),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.km - b.km);
+    if (!storms.length) {
+      box.innerHTML = '<p class="muted">Không có xoáy nhiệt đới nào đang hoạt động trong cửa sổ 10 ngày qua đến 6 ngày tới theo GDACS.</p>';
+      if (meta) meta.textContent = '0 cơn';
+      return;
+    }
+    box.innerHTML = storms.map(s => {
+      const rank = ALERT_RANK[s.alertRank] === 3 ? 'red' : ALERT_RANK[s.alertRank] === 2 ? 'orange' : 'yellow';
+      return `<div class="alert-item ${rank}">
+        <h4>${esc(s.name)}${s.alertRank ? ` <span class="warn-chip ${rank}">${esc(s.alertRank)}</span>` : ''}</h4>
+        <p>Tâm tại ${fmt(Math.abs(s.last.lat), 2)}° ${s.last.lat >= 0 ? 'B' : 'N'} · ${fmt(Math.abs(s.last.lon), 2)}° ${s.last.lon >= 0 ? 'Đ' : 'T'} — cách đây <strong>${fmt(s.km, 0)} km</strong> về phía ${compass(s.bearing)}.</p>
+        ${s.approach != null ? `<p class="small">Hướng tiến gần nhất theo các vị trí GDACS: <strong>${compass(s.approach)}</strong> (${fmt(s.approach, 0)}°). Đây là hướng đi qua các điểm quan sát gần nhất, không phải dự báo chính thức.</p>` : ''}
+        <p class="meta">${s.last.t ? 'Cập nhật ' + esc(String(s.last.t).slice(0, 16)).replace('T', ' ') + ' UTC · ' : ''}<a href="${esc(s.url || 'https://www.gdacs.org/')}" target="_blank" rel="noopener">GDACS</a> · <a href="https://www.jtwc.navy.mil/" target="_blank" rel="noopener">JTWC</a></p>
+      </div>`;
+    }).join('');
+    if (meta) meta.textContent = storms.length + ' cơn · gần nhất ' + fmt(storms[0].km, 0) + ' km';
+  } catch (e) {
+    box.innerHTML = `<p class="small">Không lấy được dữ liệu xoáy nhiệt đới: ${esc(e.message)}</p>`;
+    if (meta) meta.textContent = 'lỗi';
+  }
+}
+
 async function loadAlerts() {
   const loc = disasterLoc || { name: place.name, lat: place.lat, lon: place.lon };
   $('alertsList').innerHTML = '<p class="muted">Đang lấy dữ liệu từ USGS…</p>';
@@ -1690,7 +2148,7 @@ function initDisasterTab() {
     radarInitialized = false;
     initRadar();
   };
-  $('disasterLoadAlerts').onclick = loadAlerts;
+  $('disasterLoadAlerts').onclick = () => { loadAlerts(); loadTropicalCyclones(); };
 }
 
 /**
@@ -1749,6 +2207,7 @@ function wireTabs() {
         // Ensure the Leaflet map sizes itself once the view is visible.
         setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 120);
       }
+      if (b.dataset.view === 'disaster' && !$('tcMeta').textContent.match(/\d/)) loadTropicalCyclones();
     };
   });
 }

@@ -1548,6 +1548,171 @@
     return out;
   }
 
+  /* ================================================================
+   * 12. Air mass, trajectory and hydrology
+   *
+   * Physical diagnostics computed from pressure-level fields. Kept pure so
+   * they can be unit-tested without a network or a map.
+   * ================================================================ */
+
+  /** 500-850 hPa thickness in metres: the standard column-temperature proxy. */
+  function thickness(z500, z850) {
+    if (!finite(z500) || !finite(z850)) return null;
+    return z500 - z850;
+  }
+
+  /** Wind components in m/s from speed (km/h) and the direction it blows FROM. */
+  function toUms(speedKmh, dirDeg) {
+    if (!finite(speedKmh) || !finite(dirDeg)) return { u: null, v: null };
+    const s = speedKmh / 3.6, r = dirDeg * Math.PI / 180;
+    // Meteorological convention: dir is where the wind comes from.
+    return { u: -s * Math.sin(r), v: -s * Math.cos(r) };
+  }
+
+  /** Moves a lat/lon by an east-north displacement in km. */
+  function offsetLatLon(lat, lon, dxKm, dyKm) {
+    const dLat = dyKm / 111.32;
+    const cos = Math.max(0.15, Math.cos(lat * Math.PI / 180));
+    const dLon = dxKm / (111.32 * cos);
+    return { lat: lat + dLat, lon: lon + dLon };
+  }
+
+  /**
+   * Forward or backward air-mass trajectory by integrating the 850 hPa wind.
+   * `sign = +1` follows the flow forward in time, `-1` walks it backward, which
+   * is how one answers "where did this air come from". Uses great-circle steps
+   * at constant speed, one leg per hour.
+   */
+  function trajectory(opts) {
+    const { lat, lon, u, v, hours = 24, stepKm = 25, sign = 1 } = opts;
+    const n = Math.max(1, Math.round(hours));
+    const legs = [{ lat, lon, hoursAgo: 0, speedKmh: null }];
+    let cur = { lat, lon };
+    for (let h = 1; h <= n; h++) {
+      const i = Math.min(u.length, v.length) - h;
+      if (i < 0) break;
+      if (!finite(u[i]) || !finite(v[i])) break;
+      const speed = Math.hypot(u[i], v[i]);
+      // Gio gan nhu khong co huong thi khong dua duoc: dung vao nhan bang cach
+      // chia cho van toc do be qua se sinh do lech ngau nhien.
+      if (speed < 0.1) break;
+      const scale = (stepKm * sign) / speed;
+      cur = offsetLatLon(cur.lat, cur.lon, u[i] * scale, v[i] * scale);
+      legs.push({ lat: cur.lat, lon: cur.lon, hoursAgo: sign > 0 ? -h : h, speedKmh: speed * 3.6 });
+    }
+    return legs;
+  }
+
+  /** Compass bearing in degrees from point a to point b. */
+  function bearingDeg(a, b) {
+    const r = Math.PI / 180;
+    const dLon = (b.lon - a.lon) * r, lat1 = a.lat * r, lat2 = b.lat * r;
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+
+  /** Minimum distance in km from a point to a polyline, plus where it lands. */
+  function nearestOnTrack(pt, legs) {
+    let best = null;
+    for (let i = 0; i + 1 < legs.length; i++) {
+      const a = legs[i], b = legs[i + 1];
+      const steps = 24;
+      for (let s = 0; s <= steps; s++) {
+        const f = s / steps;
+        const p = { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
+        const km = distanceKm(pt, p);
+        if (!best || km < best.km) {
+          best = { km, point: p, legIndex: i, frac: f, hoursAgo: a.hoursAgo + (b.hoursAgo - a.hoursAgo) * f };
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Classifies the air mass at a point into a Vietnamese-language tag.
+   * Uses only what is measurable here: 850 hPa temperature against the site's
+   * own recent baseline, thickness anomaly, moisture, and whether the wind is
+   * advecting from a cold continent or a warm ocean. Returns null when the
+   * inputs are too sparse rather than guessing.
+   */
+  function airMass(opts) {
+    const { t850, t850Baseline, thick, thickBaseline, rh850, source } = opts;
+    if (!finite(t850)) return null;
+    const dT = finite(t850Baseline) ? t850 - t850Baseline : null;
+    const dThick = (finite(thick) && finite(thickBaseline)) ? thick - thickBaseline : null;
+
+    let tag = 'Ôn hòa', tone = 'neutral';
+    if (finite(dT) && finite(dThick)) {
+      if (dT <= -3 && dThick <= -60) { tag = 'Khối lạnh'; tone = 'cold'; }
+      else if (dT >= 3 && dThick >= 60) { tag = 'Khối nóng'; tone = 'warm'; }
+      else if (dT <= -1.5) { tag = 'Hơi lạnh'; tone = 'cool'; }
+      else if (dT >= 1.5) { tag = 'Hơi nóng'; tone = 'mild'; }
+    } else if (finite(dT)) {
+      if (dT <= -3) { tag = 'Khối lạnh'; tone = 'cold'; }
+      else if (dT >= 3) { tag = 'Khối nóng'; tone = 'warm'; }
+      else if (dT <= -1.5) { tag = 'Hơi lạnh'; tone = 'cool'; }
+      else if (dT >= 1.5) { tag = 'Hơi nóng'; tone = 'mild'; }
+    }
+
+    // Advection sense from where the wind comes from. Northerly flow off the
+    // Asian landmass is the classic Vietnamese cold-air outbreak.
+    let advection = null;
+    if (finite(source)) {
+      advection = (source >= 315 || source < 45) ? 'Bắc' : (source >= 45 && source < 135) ? 'Đông' : (source >= 135 && source < 225) ? 'Nam' : 'Tây';
+    }
+    const moisture = finite(rh850)
+      ? (rh850 >= 85 ? 'Ẩm' : rh850 <= 45 ? 'Khô' : 'Ẩm vừa')
+      : null;
+    return { tag, tone, dT: round(dT, 1), dThick: round(dThick, 1), t850: round(t850, 1), advection, moisture, rh850: round(rh850, 0) };
+  }
+
+  /**
+   * Detects frontal passage from 850 hPa series: a wind veer (cold front) or
+   * backing (warm front) coinciding with a temperature drop or rise. Reports the
+   * lead index in hours, or null when neither is present.
+   */
+  function frontalPassage(opts) {
+    const { dir850, t850, hoursBack = 12 } = opts;
+    const n = Math.min(dir850.length, t850.length);
+    if (n < hoursBack + 2) return null;
+    const i0 = n - 1, i1 = n - 1 - hoursBack;
+    if (!finite(dir850[i0]) || !finite(dir850[i1]) || !finite(t850[i0]) || !finite(t850[i1])) return null;
+    // Signed smallest angle: positive = veering (clockwise, cold front in VN).
+    const shift = ((dir850[i0] - dir850[i1] + 540) % 360) - 180;
+    const dT = t850[i0] - t850[i1];
+    if (shift >= 20 && dT <= -1) return { kind: 'Mặt lạnh', leadHours: hoursBack, windShift: round(shift, 0), dT: round(dT, 1) };
+    if (shift <= -20 && dT >= 1) return { kind: 'Mặt ấm', leadHours: hoursBack, windShift: round(shift, 0), dT: round(dT, 1) };
+    return null;
+  }
+
+  /**
+   * River discharge risk from GloFAS percentiles. Compares the forecast median
+   * against the recent observed median and reports the exceedance probability
+   * implied by the p25/p75 spread. Discharge is m3/s; there is no rating curve
+   * here, so no water level in metres is derived.
+   */
+  function riverRisk(opts) {
+    const { q, qP25, qP75, recent } = opts;
+    if (!finite(q)) return null;
+    const band = finite(qP25) && finite(qP75) ? { p25: qP25, p75: qP75 } : null;
+    let vsRecent = null;
+    if (finite(recent) && recent > 0) vsRecent = (q - recent) / recent;
+    // Exceedance chance of crossing `recent`, read off the percentile band by
+    // linear interpolation in log space (discharge is a positive, skewed var).
+    let exceed = null;
+    if (band && finite(recent) && recent > 0 && band.p25 > 0 && band.p75 > band.p25) {
+      const f = (Math.log(recent) - Math.log(band.p25)) / (Math.log(band.p75) - Math.log(band.p25));
+      exceed = round(clamp(1 - clamp(f, 0, 1), 0, 1), 2);
+    }
+    const rising = finite(vsRecent) ? vsRecent : null;
+    return {
+      q: round(q, 1), p25: band ? round(band.p25, 1) : null, p75: band ? round(band.p75, 1) : null,
+      vsRecent: round(rising, 3), exceed, recent: round(recent, 1),
+    };
+  }
+
   /** Great-circle distance in km, used to pick the nearest calibrated location. */
   function distanceKm(a, b) {
     const R = 6371, r = Math.PI / 180;
@@ -1564,5 +1729,7 @@
     pairedBootstrap, toSpeed, toDir, circularAbs, condGroup, conditionOf,
     distanceKm, predictFromCalibration, calibrate, calibrateDirection, calibrateCode,
     evaluate, hourOf, dayOfYear, regimeKey, REGIME_EDGES,
+    thickness, toUms, offsetLatLon, trajectory, bearingDeg, nearestOnTrack,
+    airMass, frontalPassage, riverRisk,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

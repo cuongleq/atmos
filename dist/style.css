@@ -122,3 +122,32 @@ html{-webkit-text-size-adjust:100%}
   .chart-controls select{flex:1 1 100%}
   .primary,.secondary{padding:11px 13px;font-size:13px}
 }
+/* ==== khoi khi va song ==== */
+.mass-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.mass-tag{font-size:30px;font-weight:700;letter-spacing:-.8px;line-height:1.2;margin-top:2px}
+.mass-tag.cold{color:#2a5f96}.mass-tag.warm{color:#c0392b}.mass-tag.cool{color:#4a7fa8}.mass-tag.mild{color:#b5701f}.mass-tag.neutral{color:var(--ink)}
+.mass-consensus{text-align:right}
+.mass-consensus strong{display:block;font-size:24px;font-weight:700;letter-spacing:-.5px}
+.river-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:14px 0 16px}
+.river-card{border:1px solid var(--line);background:#fff;border-radius:9px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;text-align:left;min-width:0}
+.river-card:hover{border-color:var(--blue)}
+.river-card.selected{border-color:var(--ink);border-width:2px;background:#f6f9fc}
+.river-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.river-top strong{font-size:17px;font-weight:700}
+.river-q{font-size:26px;font-weight:650;letter-spacing:-.8px;line-height:1.15}
+.river-q em{font-size:12px;font-style:normal;color:var(--muted);letter-spacing:0;margin-left:4px}
+.river-bar{display:block;height:6px;border-radius:3px;background:#e7edf2;overflow:hidden}
+.river-bar i{display:block;height:100%;background:#2a5f96}
+.river-bar i.high{background:#c0392b}.river-bar i.low{background:#5aa0c8}
+#trajectory svg{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:9px;background:#eef3f7}
+#riverChart svg{width:100%;height:auto;display:block;margin-top:6px}
+svg .tvb{font-size:10px;fill:#526474;font-family:'Segoe UI',Arial,sans-serif}
+
+@media(max-width:650px){
+  .mass-tag{font-size:25px}
+  .mass-consensus strong{font-size:20px}
+  .river-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .river-card{padding:10px}
+  .river-q{font-size:21px}
+  .river-top{flex-direction:column;align-items:flex-start;gap:1px}
+}

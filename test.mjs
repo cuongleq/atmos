@@ -907,6 +907,19 @@ check('giao diện co giãn được trên máy tính lẫn điện thoại', ()
   assert.ok(/(?<![-\w])width:\s*(1[0-9]{3}|[5-9]\d\d)px/.test(css) === false,
     'có chiều rộng cứng quá rộng cho điện thoại');
 });
+check('lớp khối khí và sông có mặt, ghi rõ giới hạn nguồn số liệu', () => {
+  for (const id of ['airMassBox', 'trajectory', 'trajNote', 'riverList', 'riverChart', 'massMeta', 'tcList', 'tcMeta']) {
+    assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);
+  }
+  assert.ok(html.includes('data-view="mass"'), 'thiếu tab Khối khí & sông');
+  assert.ok(html.includes('id="mass"'), 'thiếu khối nội dung tab khối khí');
+  // Không được hứa "mực nước" khi nguồn chỉ có lưu lượng.
+  assert.ok(html.includes('m³/s'), 'phải nêu đơn vị lưu lượng');
+  assert.ok(!/mực nước[^.]{0,40}\bmet\b/i.test(html), 'không được hứa mực nước tính bằng mét');
+  assert.ok(/chưa qua hiệu chỉnh/i.test(html), 'phải nói rõ lớp này chưa hiệu chỉnh');
+  assert.ok(html.includes('GloFAS'), 'phải ghi nguồn GloFAS');
+  assert.ok(html.includes('850 hPa'), 'phải ghi rõ tầng dữ liệu 850 hPa');
+});
 check('giao diện dự báo dài hạn và tìm kiếm đa nguồn có mặt', () => {
   for (const id of ['searchResults', 'monthCal', 'monthTitle', 'monthMeta', 'dayDetail', 'dayDetailTitle', 'dayDetailMeta', 'disasterPlaceNote', 'windyLink', 'aqiNow', 'aqiStrip', 'aqiPollutants', 'aqiAdvice', 'aqiMeta']) {
     assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);
@@ -926,6 +939,78 @@ check('giao diện dự báo dài hạn và tìm kiếm đa nguồn có mặt', 
   assert.ok(html.includes('<h1>64 biến.'), 'tiêu đề chính phải là "64 biến."');
 });
 
+check('khối khí: độ dày cột và quy ước hướng gió', () => {
+  // Do day 500-850: don vi met, va phai bo qua gia tri thieu.
+  near(E.thickness(5909, 1539), 4370, 1e-9, 'do day cot');
+  assert.equal(E.thickness(null, 1539), null, 'thieu gia tri phai tra null');
+  // Huong du bao: toan do bat dau tai phia bac, chay ve phia nam.
+  const n = E.toUms(36, 0);   // 36 km/h = 10 m/s, huong bac
+  near(n.v, -10, 1e-9, 'v huong bac');
+  near(n.u, 0, 1e-9, 'u huong bac');
+  const e = E.toUms(36, 90);  // huong dong, thoi sang phai
+  near(e.u, -10, 1e-9, 'u huong dong');
+  near(e.v, 0, 1e-9, 'v huong dong');
+  assert.equal(E.toUms(null, 90).u, null, 'thieu toc do phai tra null');
+});
+check('khối khí: quỹ đạo đi đúng hướng gió và ngược thời gian', () => {
+  const u = new Array(12).fill(0), v = new Array(12).fill(-10); // gió từ bắc, chạy về nam
+  const fwd = E.trajectory({ lat: 10.8, lon: 106.6, u, v, hours: 6, stepKm: 20, sign: 1 });
+  const back = E.trajectory({ lat: 10.8, lon: 106.6, u, v, hours: 6, stepKm: 20, sign: -1 });
+  assert.equal(fwd.length, 7, '6 buoc phai ra 7 diem');
+  assert.ok(fwd[6].lat < 10.8, 'khi gio chay ve nam thi viet do phai giam');
+  assert.ok(back[6].lat > 10.8, 'nguoc thoi gian thi phai tro len phia bac');
+  near(E.distanceKm({ lat: 10.8, lon: 106.6 }, fwd[6]), 120, 3, 'quang duong 6 x 20 km');
+  // Chuan hoa: giong nhau thi duong di phai dung thang.
+  const z = new Array(6).fill(0);
+  const straight = E.trajectory({ lat: 0, lon: 0, u: z, v: z, hours: 3, stepKm: 10, sign: 1 });
+  assert.equal(straight.length, 1, 'khong co gio thi khong di duoc');
+});
+check('khối khí: phân loại nóng/lạnh theo độ lệch chuẩn', () => {
+  const cold = E.airMass({ t850: 10, t850Baseline: 20, thick: 4200, thickBaseline: 4500, rh850: 50, source: 350 });
+  const warm = E.airMass({ t850: 27, t850Baseline: 20, thick: 4700, thickBaseline: 4500, rh850: 95, source: 200 });
+  const mid = E.airMass({ t850: 20.2, t850Baseline: 20, thick: 4500, thickBaseline: 4500 });
+  assert.equal(cold.tag, 'Khối lạnh', 'nhiet do thap hon chuan nhieu la khoi lanh');
+  assert.equal(cold.advection, 'Bắc', 'gio tu bac la advection bac');
+  assert.equal(warm.tag, 'Khối nóng', 'nhiet do cao hon chuan nhieu la khoi nong');
+  assert.equal(warm.moisture, 'Ẩm', 'do am cao la am');
+  assert.equal(mid.tag, 'Ôn hòa', 'gan chuan thi on hoa');
+  assert.equal(E.airMass({ t850: null }), null, 'khong du du lieu thi khon doan');
+});
+check('khối khí: nhận diện mặt lạnh và mặt ấm', () => {
+  const d0 = new Array(12).fill(20), d1 = new Array(12).fill(80);
+  const t0 = new Array(12).fill(22), t1 = new Array(12).fill(16);
+  const cold = E.frontalPassage({ dir850: [...d0, ...d1], t850: [...t0, ...t1] });
+  assert.equal(cold.kind, 'Mặt lạnh', 'gio xoay thuan chieu + nhiet do giam = mat lanh');
+  assert.equal(cold.leadHours, 12, 'bao cao so gio nhin lai');
+  assert.ok(cold.windShift >= 20, 'luoc ghi nho goc xoay');
+  const warm = E.frontalPassage({ dir850: [...d1, ...d0], t850: [...t1, ...t0] });
+  assert.equal(warm.kind, 'Mặt ấm', 'nguoc chieu dao + nhiet do tang = mat am');
+  assert.equal(E.frontalPassage({ dir850: d0.concat(d0), t850: t0.concat(t0) }), null, 'khong co bien doi thi khong bao');
+});
+check('sông: nguy cơ lưu lượng đọc từ dải phân vị', () => {
+  const r = E.riverRisk({ q: 120, qP25: 90, qP75: 150, recent: 100 });
+  assert.equal(r.q, 120, 'gia tri goc');
+  assert.equal(r.p25, 90, 'can duoi');
+  assert.equal(r.p75, 150, 'can tren');
+  near(r.vsRecent, 0.2, 1e-9, 'vuot trung binh 20%');
+  // recent nam o phan tu 20 cua dai => ~80% kha nang vuot
+  assert.ok(r.exceed > 0.7 && r.exceed < 0.9, 'xac suat vuot nhat suyet phai doan dung khoang: ' + r.exceed);
+  assert.equal(E.riverRisk({ q: null }), null, 'khong co so lieu thi tra null');
+  const wide = E.riverRisk({ q: 100, qP25: 50, qP75: 900, recent: 200 });
+  // Dai phan vi rong hon nghia la it chap han hon: xac suat vuot TB phai THAP hon.
+  assert.ok(wide.exceed < r.exceed, `dai rong thi xac suat vuot phai thap hon (${wide.exceed} so voi ${r.exceed})`);
+});
+check('bản đồ: khoảng cách tới đường đi và hướng la', () => {
+  const a = { lat: 10, lon: 106 }, b = { lat: 11, lon: 106 };
+  const north = E.bearingDeg(a, b);
+  assert.ok(north >= 350 || north <= 10, 'huong bac phai la ~0 do, nhan duoc ' + north);
+  assert.ok(E.bearingDeg(b, a) > 170 && E.bearingDeg(b, a) < 190, 'huong nam phai la ~180 do');
+  const line = [{ lat: 10, lon: 106, hoursAgo: 0 }, { lat: 12, lon: 106, hoursAgo: 6 }];
+  const hit = E.nearestOnTrack({ lat: 11, lon: 107 }, line);
+  // 1 do kinh do o vi do ~11° B la 111.32 * cos(11°) ~ 109 km, khong phai 104.
+  near(hit.km, 109.2, 2, 'diem gan nhat cach 1 do kinh do');
+  assert.ok(hit.hoursAgo >= 0 && hit.hoursAgo <= 6, 'vi tri phai nam trong doan, nhan ' + hit.hoursAgo);
+});
 console.log(`\n${failures.length ? 'FAIL' : 'PASS'} — ${passed} nhóm kiểm thử đã qua, ${failures.length} lỗi.`);
 if (failures.length) {
   console.log('Danh sách lỗi:');

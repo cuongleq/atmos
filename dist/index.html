@@ -2340,18 +2340,18 @@ async function api(base, params, proxyLevel = 0) {
     
     const j = await r.json();
     if (!r.ok || j.error) {
-      if (r.status === 429 && proxyLevel < 2) {
+      if ((r.status === 429 || r.status === 403) && proxyLevel < 2) {
         return api(base, params, proxyLevel + 1);
       }
       throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);
     }
     return j;
   } catch (e) {
-    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('Proxy failed') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
+    if (proxyLevel < 2 && (e.message.includes('429') || e.message.includes('403') || e.message.includes('Proxy failed') || e.message.includes('Failed to fetch') || e.name === 'TypeError')) {
       return api(base, params, proxyLevel + 1);
     }
-    // Nếu mọi proxy đều thất bại hoặc bị chặn, trả về lỗi 429 gốc để UI báo đúng
-    if (proxyLevel > 0) throw new Error('429 Rate limit exceeded');
+    // Nếu mọi proxy đều thất bại hoặc bị chặn, trả về lỗi gốc để UI báo đúng
+    if (proxyLevel > 0) throw new Error('API/Proxy bị chặn (Lỗi 429 hoặc 403). Xin thử lại sau.');
     throw e;
   }
 }
@@ -2530,8 +2530,8 @@ async function loadForecast() {
     if (token !== requestId) return;
     console.error(err);
     const msg = err.message || '';
-    if (msg.includes('429') || msg.toLowerCase().includes('limit exceeded')) {
-      notice('liveStatus', 'Đã hết lượt API miễn phí của Open-Meteo (10,000 lượt/ngày) do lượng truy vấn lớn. Xin thử lại vào ngày mai.', 'error');
+    if (msg.includes('429') || msg.toLowerCase().includes('limit exceeded') || msg.includes('403') || msg.includes('bị chặn')) {
+      notice('liveStatus', 'Đã hết lượt API miễn phí của Open-Meteo (10,000 lượt/ngày) do lượng truy vấn lớn. Lỗi 403/429. Xin thử lại vào ngày mai.', 'error');
     } else {
       notice('liveStatus', 'Không tải được dự báo: ' + msg + '. Kiểm tra kết nối rồi chọn Cập nhật.', 'error');
     }

@@ -62,8 +62,7 @@ async function api(base, params) {
   let url = base + '?' + new URLSearchParams(params);
   // Không dùng proxy trung gian nữa vì 8 request đồng thời sẽ làm treo proxy và gây đứng UI
   try {
-    // Giảm timeout xuống 15s để không bị treo "Đang tải" quá lâu
-    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const r = await fetch(url);
     const j = await r.json();
     if (!r.ok || j.error) {
       throw new Error(j.reason || 'Nguồn dữ liệu trả về lỗi ' + r.status);

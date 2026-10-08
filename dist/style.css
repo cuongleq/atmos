@@ -168,3 +168,34 @@ svg .tvb{font-size:10px;fill:#526474;font-family:'Segoe UI',Arial,sans-serif}
   #riverLevels table{min-width:520px}
   #riverLevels td strong.lv{font-size:15px}
 }
+/* ==== theme he thong ==== */
+@media (prefers-color-scheme: dark){
+  :root{--ink:#e5edf6;--muted:#93a7b8;--line:rgba(255,255,255,.12);--paper:#0d1526;--blue:#5ea2ec;--orange:#f59e0b}
+  body{background:linear-gradient(135deg,#0d1526 0%,#131c33 100%);color:var(--ink)}
+  .panel,.metric,.current,.param,.ref-card,.river-card,.alert-item,.pollutant,.mday,table,.table-wrap table,.mday.past{background:#16203a!important;border-color:rgba(255,255,255,.12)!important;color:var(--ink)!important}
+  .current .eyebrow,.current .muted,.current .small,.metric .small,.metric small{color:var(--muted)!important}
+  .current-stats{border-color:rgba(255,255,255,.15);color:var(--muted)}
+  .current-stats strong{color:var(--ink)}
+  th,td{border-color:rgba(255,255,255,.12)}
+  th:first-child,td:first-child{background:#16203a!important}
+  .tab{color:var(--muted)}
+  input,select,button.secondary,.chip,.quick button,#searchResults button,#disasterSearchResults button{background:#1a2742!important;border-color:rgba(255,255,255,.15)!important;color:var(--ink)!important}
+  .notice{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--ink)}
+  a{color:#7ab5f5}
+  .mday.past{background:#141d33!important}
+  .mday.forecast{border-color:#5ea2ec}
+  header{background:#060b18}
+  footer{border-top-color:rgba(255,255,255,.12)}
+  .radar-map{background:#0b1220}
+  table tr.chosen td{background:#1b2947!important}
+  .day.alert{background:#332b1d}
+  nav{border-bottom-color:rgba(255,255,255,.14)}
+  .quick button.selected{background:#2b3c5d;color:#fff;border-color:#5ea2ec}
+  .strip-cell.empty{background:#141d33}
+  .code-cell{background:#16203a}
+  .mday.out{background:#101a2f;opacity:.6}
+  #aqiStrip .strip-cell{background:#16203a}
+}
+/* Hệ khí: ô tròn liên tiếp, giới hạn mờ nhẹ để không lộ ô vuông */
+.mass-blob{filter:blur(8px);shape-rendering:geometricPrecision}
+

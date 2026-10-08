@@ -841,11 +841,11 @@ function drawAirMassOverlay() {
   for (const c of airGrid.cells) {
     const dLat = (c.lat - lat0) * 111.32;
     const dLon = (c.lon - lon0) * 111.32 * Math.max(0.15, Math.cos(lat0 * Math.PI / 180));
-    const radKm = airGrid.stepKm * 0.72;
-    const cs = radKm * 0.72; // cạnh ô vuông theo toạ độ bước 100 km
+    const cs = airGrid.stepKm * 0.95; // bán kính ô tròn gần bằng khoảng cách giữa các tâm
     const pts = [];
-    for (const [dx, dy] of [[-cs, -cs], [cs, -cs], [cs, cs], [-cs, cs]]) {
-      const p = E.offsetLatLon(c.lat, c.lon, dx, dy);
+    for (let a = 0; a < 12; a++) {
+      const ang = (a * Math.PI) / 6;
+      const p = E.offsetLatLon(c.lat, c.lon, Math.cos(ang) * cs, Math.sin(ang) * cs);
       pts.push([p.lat, p.lon]);
     }
     const label = '<strong>' + (c.tag || '—') + '</strong><br>' + fmt(c.t850, 1) + ' °C ở 850 hPa<br>'
@@ -853,7 +853,7 @@ function drawAirMassOverlay() {
       + 'độ dày cột ' + fmt(c.thick, 0) + ' m';
     L.polygon(pts, {
       color: MASS_COLORS[c.tone] || MASS_COLORS.neutral,
-      weight: 1.5, opacity: 0.9, fillOpacity: 0.62, interactive: false, className: 'mass-cell'
+      weight: 0, fillOpacity: 0.72, stroke: false, interactive: false, className: 'mass-blob'
     }).addTo(airLayer);
     // bindTooltip gắn tooltip vào chính polygon. Dựng L.tooltip rồi gọi
     // setTooltip không tồn tại trên Leaflet.

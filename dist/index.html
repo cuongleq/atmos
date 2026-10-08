@@ -2528,26 +2528,32 @@ async function loadForecast() {
   }
   live = fc;
   calCache.clear();
-  renderForecast();
+  try {
+    renderForecast();
+    
+    const failed = live.models.filter(m => !m).length;
+    notice('liveStatus', failed
+      ? `${MODELS.length - failed}/${MODELS.length} hệ thống có dữ liệu. Hệ thống thiếu được bỏ qua, giá trị thiếu không được coi là 0.`
+      : `Đã tải ${MODELS.length} hệ thống và hiệu chỉnh bằng hệ số đã kiểm thử. Múi giờ ${live.base.timezone}.`,
+      failed ? 'warning' : '');
 
-  const failed = live.models.filter(m => !m).length;
-  notice('liveStatus', failed
-    ? `${MODELS.length - failed}/${MODELS.length} hệ thống có dữ liệu. Hệ thống thiếu được bỏ qua, giá trị thiếu không được coi là 0.`
-    : `Đã tải ${MODELS.length} hệ thống và hiệu chỉnh bằng hệ số đã kiểm thử. Múi giờ ${live.base.timezone}.`,
-    failed ? 'warning' : '');
-
-  renderChart();
-  renderParams();
-  renderDays();
-  selectedDay = null;
-  $('dayDetailTitle').textContent = 'Chọn một ngày trong tháng';
-  $('dayDetailMeta').textContent = '—';
-  $('dayDetail').innerHTML = '<p class="muted">Bấm vào một ngày có dự báo trong lịch tháng (hoặc thẻ 16 ngày) để xem chi tiết từng giờ.</p>';
-  renderNchmf();
-  loadMonthCal();
-  loadAqi();
-  loadAirMassAndRivers();
-  syncDisasterToPlace();
+    renderChart();
+    renderParams();
+    renderDays();
+    selectedDay = null;
+    $('dayDetailTitle').textContent = 'Chọn một ngày trong tháng';
+    $('dayDetailMeta').textContent = '—';
+    $('dayDetail').innerHTML = '<p class="muted">Bấm vào một ngày có dự báo trong lịch tháng (hoặc thẻ 16 ngày) để xem chi tiết từng giờ.</p>';
+    renderNchmf();
+    loadMonthCal();
+    loadAqi();
+    loadAirMassAndRivers();
+    syncDisasterToPlace();
+  } catch (err) {
+    console.error('Lỗi khi hiển thị dữ liệu:', err);
+    notice('liveStatus', 'Lỗi hiển thị dữ liệu: ' + err.message + '. Vui lòng báo cáo lỗi này.', 'error');
+    $('condition').textContent = 'Lỗi dữ liệu';
+  }
 }
 
 /* ---------- air mass, trajectory and rivers ---------- */

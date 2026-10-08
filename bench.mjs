@@ -187,10 +187,12 @@ function pooledOne(loaded, variable, lead) {
   if (common.length < 2) return null;
   for (const id of common) series[id] = new Array(times.length).fill(null);
   for (let k = 0; k < times.length; k++) {
-    for (const vs of loaded) {
-      const all = buildSeries(vs, variable, lead);
-      const col = variable === 'wind_direction_10m' ? all[id]?.u : all[id];
-      if (col && finite(col[k % nHours])) series[id][k] = col[k % nHours];
+    for (const id of common) {
+      for (const vs of loaded) {
+        const all = buildSeries(vs, variable, lead);
+        const col = variable === 'wind_direction_10m' ? all[id]?.u : all[id];
+        if (col && finite(col[k % nHours])) series[id][k] = col[k % nHours];
+      }
     }
   }
   const cross = {}, crossVars = [];
@@ -277,7 +279,7 @@ if (!only) {
     for (const lead of LEADS) {
       const t0 = Date.now();
       try {
-        const r = pooledOne(loaded, variable, lead);
+        const r = pooledOne([...loadedFor.values()], variable, lead);
         if (!r) continue;
         pooled[variable][lead] = {
           family: r.selected?.family ?? null, models: r.models, calibration: r.calibration,
@@ -295,7 +297,7 @@ if (!only) {
 
 /* ---------- report ---------- */
 
-const scored = locations.flatMap(l => l.tests).filter(t => t.usable);
+const scored = locations.flatMap(l => l.tests).filter(t => t.usable && t.mean?.rmse != null && t.equalMean?.rmse != null);
 const skill = arr => arr.filter(x => finite(x));
 const meanOf = (arr, f) => {
   const v = arr.map(f).filter(finite);

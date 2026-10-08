@@ -275,6 +275,8 @@ const pooled = {};
 if (!only) {
   for (const variable of VARIABLES) {
     if (E.VARIABLES[variable].kind === 'code') continue;
+    // Không gộp hướng gió: nhầm lẫn góc giữa các miền làm tính năng bị sai.
+    if (E.VARIABLES[variable].kind === 'direction') continue;
     pooled[variable] = {};
     for (const lead of LEADS) {
       const t0 = Date.now();

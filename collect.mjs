@@ -83,15 +83,22 @@ for (let attempt = 0; attempt < 8; attempt++) {
 throw new Error(`${last.message} (sau 8 lần thử)`);
 }
 
+// `--locations a,b` and `--models c,d` narrow the run so a single missing
+// series can be topped up without re-walking the whole corpus.
+const onlyLocations = (flag('--locations') || '').split(',').map(s => s.trim()).filter(Boolean);
+const onlyModels = (flag('--models') || '').split(',').map(s => s.trim()).filter(Boolean);
+const useLocation = id => !onlyLocations.length || onlyLocations.includes(id);
+const useModel = id => !onlyModels.length || onlyModels.includes(id);
+
 const jobs = [];
-for (const loc of LOCATIONS) {
+for (const loc of LOCATIONS.filter(l => useLocation(l.id))) {
   const geo = { latitude: loc.lat, longitude: loc.lon, start_date: PERIOD.start, end_date: PERIOD.end, timezone: 'GMT' };
   jobs.push({
     file: `${loc.id}-era5.json`,
     label: `ERA5 ${loc.id}`,
     url: `${API.archive}?${new URLSearchParams({ ...geo, hourly: VARIABLES.join(','), models: 'era5' })}`,
   });
-  for (const model of DET_MODELS) {
+  for (const model of DET_MODELS.filter(m => useModel(m.id))) {
     jobs.push({
       file: `${loc.id}-${model.id}.json`,
       label: `${model.id} ${loc.id}`,

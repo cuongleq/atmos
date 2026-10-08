@@ -258,7 +258,6 @@ async function loadForecast() {
     $('paramGrid').innerHTML = '<p class="muted">Không có dữ liệu trực tiếp.</p>';
     return;
   }
-  live = fc;
   calCache.clear();
   try {
     renderForecast();
@@ -775,7 +774,7 @@ async function fetchAirGrid() {
     hourly: GRID_VARS.join(','),
     // Tối ưu hóa: Thay vì lấy cả 7 mô hình (tốn 7x dung lượng và API request),
     // bản đồ khối khí diện rộng chỉ cần 1 mô hình ECMWF là đủ chính xác.
-    models: 'ecmwf_ifs',
+    models: 'ecmwf_ifs025',
     past_days: 2, forecast_days: 1, timezone: 'auto',
   });
   const j = await api('https://api.open-meteo.com/v1/forecast', Object.fromEntries(u.entries()));
@@ -798,11 +797,14 @@ async function fetchAirGrid() {
 
   const values = list.map((a, k) => {
     const h = a.hourly || {}, i = nowIdx(a);
-    // Phai RUT GIA TRI truoc khi loc. Loc truc tiep tren cac cot van giu con
-    // mang, va meanS cua mang la null - day la nguoi dan sai "khong co du lieu".
     const pick = base => {
-      const vals = MODELS.map(m => h[base + '_' + m.id]).map(c => (c ? c[i] : null)).filter(E.finite);
-      return vals.length ? E.meanS(vals) : null;
+      // Khi gửi một mô hình, Open-Meteo không thêm hậu tố _ecmwf_ifs025 vào tên
+      // biến. Tìm đúng key thực tế trong phản hồi thay vì ghép chuỗi cố định.
+      const key = Object.keys(h).find(k => k === base || k.startsWith(base + '_'));
+      if (key === undefined) return null;
+      const col = h[key];
+      const v = col ? col[i] : null;
+      return E.finite(v) ? v : null;
     };
     return {
       lat: a.latitude ?? pts[k].lat, lon: a.longitude ?? pts[k].lon,
@@ -865,7 +867,9 @@ function drawAirMassOverlay() {
     radius: E.round(airGrid.stepKm * 620, 0), color: '#101f2d', weight: 2,
     fill: false, dashArray: '6 5', interactive: false,
   }).addTo(airLayer);
-  if (nowIso) L.control.attribution.addAttribution('Khối khí: 850/500 hPa · mốc hiện tại ' + nowIso.slice(11) + ' giờ địa phương');
+  if (nowIso && radarMap?.attributionControl) {
+    radarMap.attributionControl.addAttribution('Khối khí: 850/500 hPa · mốc hiện tại ' + nowIso.slice(11, 13) + ' giờ địa phương');
+  }
 }
 
 /** Chu thich cho lop khong khi, giu ngay tren ban do. */
@@ -880,7 +884,7 @@ async function loadAirGrid() {
   if (meta) meta.textContent = 'đang tải…';
   try {
     airGrid = await fetchAirGrid();
-    if (meta) meta.textContent = airGrid.cells.length + ' ô · bán kính ' + airGrid.radiusKm + ' km · ' + MODELS.length + ' hệ thống';
+    if (meta) meta.textContent = airGrid.cells.length + ' ô · bán kính ' + airGrid.radiusKm + ' km · ECMWF IFS (đại diện 7 hệ thống)';
     if (host) {
       const coldest = [...airGrid.cells].sort((a, b) => a.dT - b.dT)[0];
       const warmest = [...airGrid.cells].sort((a, b) => b.dT - a.dT)[0];
@@ -892,19 +896,19 @@ async function loadAirGrid() {
     }
     const al0 = $('airLegend');
     if (al0) al0.innerHTML = airMassLegendHtml();
-  drawAirMassOverlay();
+    const tg = $('airGridToggle');
+    if (tg) { tg.textContent = 'Tắt khối khí trên bản đồ'; tg.classList.remove('secondary'); tg.classList.add('primary'); }
+    drawAirMassOverlay();
     return true;
   } catch (e) {
     airGrid = null;
     const airGridError = e.message;
     if (meta) meta.textContent = 'không tải được';
     if (host) host.textContent = 'Không lấy được lưới khối khí: ' + esc(airGridError) + '. Bản đồ vẫn hiển thị radar bình thường.';
-    // Quan trọng: bao loi xong thi tra lai thay vi de loi cu, neu la lan
-    // tam tinh sau. Nguoi dung van co the dung radar binh thuong.
-    airGridRetry = setTimeout(() => { airGridRetry = null; loadAirGrid(); }, 60000);
     return false;
   }
 }
+
 let airGridRetry = null;
 
 /* ---------- C. ten sông tu OSM ---------- */

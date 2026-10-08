@@ -968,9 +968,9 @@ check('giao diện: có nút GPS, lớp khối khí trên radar và bảng mực
   assert.ok(html.includes('GPS'), 'phải nói rõ dùng GPS');
   assert.ok(/https/i.test(html), 'phải nhắc yêu cầu https cho GPS');
   const app = readFileSync(new URL('./dist/app.js', import.meta.url), 'utf8');
-  // Rút giá trị trước khi lọc: lọc trực tiếp trên cột giữ mảng và meanS trả null.
-  assert.ok(/map\(c => \(c \? c\[i\] : null\)\)\.filter\(E\.finite\)/.test(app),
-    'phải rút giá trị trước khi lọc khi gộp nhiều hệ thống');
+  // Không còn ghép key cố định khi gộp nhiều hệ thống; tìm key tuỳ phản hồi.
+  assert.ok(/Object\.keys\(h\)\.find\(k => k === base \|\| k\.startsWith\(base \+ '_'\)\)/.test(app),
+    'phải tìm key đúng trong phản hồi thay vì ghép chuỗi cố định');
 });
 check('lớp khối khí và sông có mặt, ghi rõ giới hạn nguồn số liệu', () => {
   for (const id of ['airMassBox', 'trajectory', 'trajNote', 'riverList', 'riverChart', 'massMeta', 'tcList', 'tcMeta']) {

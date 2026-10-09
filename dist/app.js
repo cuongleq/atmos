@@ -1084,6 +1084,15 @@ function renderRiverLevels() {
     const p75H = E.nominalStage(k.p75, rt.a, rt.b, rt.q0);
     const warn = rt === RATING.channel ? '' : H >= 3.5 ? 'high' : H >= 2.5 ? 'mid' : 'low';
     const crossQ = rt.ref != null ? E.stageToQ(rt.ref, rt.a, rt.b, rt.q0) : null;
+    
+    // +24h forecast
+    const idxToday = Math.max(0, r.q.length - 7);
+    const idx24h = Math.min(r.q.length - 1, idxToday + 1);
+    const qToday = r.q[idxToday];
+    const q24h = r.q[idx24h];
+    const trend = (q24h != null && qToday != null) ? (q24h > qToday + 0.1 ? '↑' : q24h < qToday - 0.1 ? '↓' : '→') : '';
+    const h24h = E.nominalStage(q24h, rt.a, rt.b, rt.q0);
+
     // Ba trạng thái khác nhau: đang tra, tra lỗi, và thật sự không có tên.
     const name = r.name || (r.nameFailed ? 'Không tra được tên' : r.nameTried ? 'Chưa có tên trong OSM' : 'đang tra tên…');
     return '<tr' + (i === riverSel ? ' class="chosen"' : '') + ' data-river="' + i + '">' +
@@ -1095,12 +1104,13 @@ function renderRiverLevels() {
       (E.finite(p25H) && E.finite(p75H) ? '<br><span class="tiny">' + fmt(p25H, 2) + '–' + fmt(p75H, 2) + ' m</span>' : '') +
       '<br><span class="tiny">' + rt.label + '</span></td>' +
       '<td>' + (E.finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '%' : '—') + '</td>' +
+      '<td>' + (E.finite(h24h) ? fmt(h24h, 2) + ' m <span class="tiny">' + trend + '</span>' : '—') + '</td>' +
       '<td>' + (E.finite(crossQ) && E.finite(k.q)
         ? (k.q >= crossQ ? '<span class="warn-chip orange">đã vượt ' + fmt(rt.ref, 1) + ' m</span>' : '<span class="tiny">cần ' + fmt(crossQ, 0) + ' m³/s</span>')
         : '<span class="tiny">—</span>') + '</td>' +
       '</tr>';
   }).join('')
-    + (anyPending ? '<tr><td colspan="5" class="muted tiny">Đang tra tên sông trong OSM cho các ô còn lại…</td></tr>' : '');
+    + (anyPending ? '<tr><td colspan="6" class="muted tiny">Đang tra tên sông trong OSM cho các ô còn lại…</td></tr>' : '');
   host.querySelectorAll('[data-river]').forEach(tr => {
     tr.onclick = () => { riverSel = +tr.dataset.river; renderRivers(); renderRiverLevels(); };
   });

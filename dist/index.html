@@ -3596,9 +3596,12 @@ async function loadAirGrid() {
     }
     const al0 = $('airLegend');
     if (al0) al0.innerHTML = airMassLegendHtml();
+    drawAirMassOverlay();
+    if (radarMap && airLayer && !radarMap.hasLayer(airLayer)) {
+      airLayer.addTo(radarMap);
+    }
     const tg = $('airGridToggle');
     if (tg) { tg.textContent = 'Tắt khối khí trên bản đồ'; tg.classList.remove('secondary'); tg.classList.add('primary'); }
-    drawAirMassOverlay();
     return true;
   } catch (e) {
     airGrid = null;
@@ -5189,16 +5192,20 @@ async function initRadar() {
     // Lop khong khi ve tren cung ban do radar. Ban do khu vuc dong du dat
     // phong do khong khi o 850/500 hPa nen phai keo lui mot so km de thay het
     // vung. Chi nap khi nguoi dung bat, tranh tai mot lan duyet khong can.
-    airLayer = L.layerGroup().addTo(radarMap);
-    if (airGrid) drawAirMassOverlay(); else loadAirGrid();
+    airLayer = L.layerGroup();
     drawDisasterPin();
     $('radarMsg').textContent = 'Radar hiện tại · khung ' +
       new Date(latest.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
-      ' (ICT).' + (airGrid ? '' : ' Đang nạp lớp khối khí 850 hPa…');
+      ' (ICT).';
     const al = $('airLegend');
     if (al) al.innerHTML = airGrid ? airMassLegendHtml() : '';
     const tg = $('airGridToggle');
-    if (tg && airGrid) { tg.textContent = 'Tắt khối khí trên bản đồ'; tg.classList.remove('secondary'); tg.classList.add('primary'); }
+    if (tg) {
+      const on = radarMap && airLayer && radarMap.hasLayer(airLayer);
+      tg.textContent = on ? 'Tắt khối khí trên bản đồ' : 'Bật khối khí trên bản đồ';
+      if (on) { tg.classList.remove('secondary'); tg.classList.add('primary'); }
+      else { tg.classList.remove('primary'); tg.classList.add('secondary'); }
+    }
   } catch (e) {
     $('radarMsg').textContent = 'Không tải được radar: ' + e.message + '. Tải lại khi có mạng.';
   }

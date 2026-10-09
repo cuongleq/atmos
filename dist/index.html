@@ -2961,7 +2961,7 @@ async function loadForecast() {
   calCache.clear();
   try {
     renderForecast();
-    
+
     const failed = live.models.filter(m => !m).length;
     notice('liveStatus', failed
       ? `${MODELS.length - failed}/${MODELS.length} hệ thống có dữ liệu. Hệ thống thiếu được bỏ qua, giá trị thiếu không được coi là 0.`
@@ -3784,7 +3784,7 @@ function renderRiverLevels() {
     const p75H = E.nominalStage(k.p75, rt.a, rt.b, rt.q0);
     const warn = rt === RATING.channel ? '' : H >= 3.5 ? 'high' : H >= 2.5 ? 'mid' : 'low';
     const crossQ = rt.ref != null ? E.stageToQ(rt.ref, rt.a, rt.b, rt.q0) : null;
-    
+
     // +24h forecast
     const idxToday = Math.max(0, r.q.length - 7);
     const idx24h = Math.min(r.q.length - 1, idxToday + 1);
@@ -4753,8 +4753,8 @@ function renderTest() {
     `<div class="metric"><span class="small">${l}</span><strong>${val}</strong><small>${note}</small></div>`).join('');
 
   // Score bars. Only variables with a continuous forecast have per-system RMSE;
-// direction and code are reported through their own angular or categorical
-// scores above, so an empty chart here is correct rather than a gap.
+  // direction and code are reported through their own angular or categorical
+  // scores above, so an empty chart here is correct rather than a gap.
   const scored = (t.models || []).map(m => ({ name: m.name, v: m.rmse }));
   if (E.finite(t.equalMean?.rmse)) scored.push({ name: 'Trung bình đều', v: t.equalMean.rmse });
   if (E.finite(t.mean?.rmse)) scored.push({ name: 'Hiệu chỉnh EMOS', v: t.mean.rmse, featured: true });
@@ -5014,7 +5014,7 @@ async function searchPlaces(q) {
     return true;
   }).slice(0, 12);
   const errors = [om.status === 'rejected' ? 'Open-Meteo: ' + om.reason.message : null,
-    osm.status === 'rejected' ? 'OpenStreetMap: ' + osm.reason.message : null].filter(Boolean);
+  osm.status === 'rejected' ? 'OpenStreetMap: ' + osm.reason.message : null].filter(Boolean);
   return { items: uniq, errors };
 }
 

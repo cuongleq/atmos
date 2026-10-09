@@ -13,7 +13,17 @@ const flag = name => {
   return i >= 0 ? process.argv[i + 1] : null;
 };
 const concurrency = Number(flag('-j')) || 2;
-const expectedHours = (Date.parse(PERIOD.end) - Date.parse(PERIOD.start)) / 3600000 + 25;
+// The archive serves exactly the requested window, hour by hour, so a cached
+// file is valid when it starts no later than PERIOD.start and reaches
+// PERIOD.end. Comparing an hour *count* against the span is brittle: an
+// off-by-N tolerance either re-downloads good data (burning the daily quota)
+// or accepts a truncated file.
+const windowStart = PERIOD.start + 'T00:00';
+const windowEnd = PERIOD.end + 'T23:00';
+const covers = json => {
+  const t = json?.hourly?.time;
+  return Array.isArray(t) && t.length > 1 && t[0] <= windowStart && t[t.length - 1] >= windowEnd;
+};
 const fields = VARIABLES.flatMap(v => LEADS.map(l => `${v}_previous_day${l}`));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -39,7 +49,7 @@ async function cached(file, build) {
   if (!force) {
     try {
       const json = JSON.parse(await fs.readFile(target, 'utf8'));
-      if (json.hourly?.time?.length === expectedHours) return { json, cached: true };
+      if (covers(json)) return { json, cached: true };
       // Stale period. Leave the file in place: it is only replaced once a
       // fresh download succeeds, so a rate limit never destroys working data.
     } catch { /* fall through and download */ }

@@ -2097,7 +2097,11 @@ function renderTest() {
   $('candTable').innerHTML = (t.candidates || []).map(c => {
     const fam = FAMILY[c.family]?.name || c.family;
     const note = FAMILY[c.family]?.note || '';
-    return `<tr${c.chosen ? ' class="chosen"' : ''}><td>${esc(fam)}${c.chosen ? ' ✓' : ''}` +
+    // `fitted` is the family that was actually estimated. With a single usable
+    // system the winner key can name a blend family that was then downgraded,
+    // and the tick has to follow what was fitted, not what was selected.
+    const pick = c.fitted === true || (c.fitted === undefined && c.chosen);
+    return `<tr${pick ? ' class="chosen"' : ''}><td>${esc(fam)}${pick ? ' ✓' : ''}` +
       `<br><span class="tiny">${esc(note)}</span></td>` +
       `<td>${c.lambda ?? '—'}</td><td>${fmt(c.cvRmse, s.digits + 1)}</td>` +
       `<td class="tiny">${E.finite(c.cvGap) ? fmt(c.cvGap, s.digits + 1) : '—'}</td></tr>`;

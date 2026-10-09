@@ -295,18 +295,94 @@
   const BOUNDS = { log1p: [0, null], logit: [0, 100], gauss: [null, null] };
 
   /** Reproducible pseudo-ensemble: the calibrated Gaussian mapped back to units. */
-  function pseudoMembers(kind, mu, sd, lo, hi) {
+  /*
+   * Pseudo-ensemble around a central forecast.
+   *
+   * `sd` arrives in the fitting space (log, logit or identity). Drawing the
+   * members there and mapping back through the inverse transform shrinks the
+   * physical spread towards zero exactly when the central value is small — a
+   * dry hour ends up with a zero-width rain ensemble, confidently wrong on the
+   * hours it actually rains. So the sigma is first carried into physical units
+   * through the local Jacobian |d(inv)/d(mu)|, and the fan is drawn there.
+   *
+   * Non-negative and bounded variables get a shifted multiplicative fan, which
+   * keeps a right tail without letting members fall below zero. The shift is
+   * what gives a central value of exactly zero real spread instead of none.
+   */
+  function pseudoMembers(kind, mu, sd, lo, hi, template, mult) {
     const inv = INVERSE[kind] || INVERSE.gauss;
     const [dlo, dhi] = BOUNDS[kind] || BOUNDS.gauss;
     const low = finite(lo) ? lo : dlo;
     const high = finite(hi) ? hi : dhi;
-    const s = Math.max(sd, 1e-4);
+    const centre = inv(mu);
+    // The template is standardised against PHYSICAL residuals, so the sigma from
+    // sigma2 — which lives in the fitting space — has to be carried across by the
+    // local Jacobian first. Skipping this would put a log-space sigma next to a
+    // mm-space template and quietly shrink every fan near zero.
+    const scale = Math.max(sd * jacobian(kind, mu), 1e-6);
+    const m = finite(mult) && mult > 0 ? mult : 1;
+    const nodes = template && template.length === K_MEMBERS
+      ? (m === 1 ? template : template.map(v => v * m))
+      : Z_NODES;
     const out = new Array(K_MEMBERS);
     for (let k = 0; k < K_MEMBERS; k++) {
-      let v = inv(mu + Z_NODES[k] * s);
+      let v = centre + nodes[k] * scale;
       if (finite(low) && v < low) v = low;
       if (finite(high) && v > high) v = high;
       out[k] = v;
+    }
+    return out.sort((a, b) => a - b);
+  }
+
+  /** |d(inv)/d(mu)| for each fitting transform, at the given central value. */
+  function jacobian(kind, mu) {
+    if (kind === 'log1p') return Math.exp(Math.max(mu, -20));
+    if (kind === 'logit') {
+      const p = 1 / (1 + Math.exp(-Math.max(-20, Math.min(20, mu))));
+      return Math.max(1e-4, 100 * p * (1 - p));
+    }
+    return 1;
+  }
+
+  /*
+   * Empirical residual shape.
+   *
+   * A Gaussian fan cannot represent rain. Its error is concentrated in a few
+   * hours, so any symmetric fan either misses those hours or is far too wide on
+   * all the dry ones — and the UI is then honest-looking but useless.
+   *
+   * So the shape is measured instead of assumed. Residuals from the fitting
+   * window are divided by the dispersion sigma2 predicts for that hour, which
+   * leaves the part of the distribution that sigma2 cannot express — the skew,
+   * the heavy tail, the mass sitting exactly on the floor. The quantiles of that
+   * standardised residual become the fan template. Only the SHAPE is taken from
+   * the data; the WIDTH still comes from sigma2, so a hour where every model
+   * agrees still gets a narrow fan.
+   */
+  function residualTemplate(z, symmetric) {
+    const s = z.filter(v => finite(v)).sort((a, b) => a - b);
+    if (s.length < 200) return null;
+    if (!symmetric) {
+      const out = new Array(K_MEMBERS);
+      for (let k = 0; k < K_MEMBERS; k++) {
+        // Midpoint quantiles, so the sample ends are not over-represented.
+        out[k] = s[clamp(Math.floor((k + 0.5) / K_MEMBERS * s.length), 0, s.length - 1)];
+      }
+      return out;
+    }
+    // Symmetric envelope of the empirical |residual|.
+    //
+    // Taking the raw quantiles would bake the fitting window's BIAS into the fan:
+    // an over-forecasting window yields a lopsided fan, and that lopsidedness
+    // does not survive to a different window. The tail WIDTH is real and worth
+    // keeping; which side it sits on is not.
+    const abs = s.map(v => Math.abs(v)).sort((a, b) => a - b);
+    const half = Math.floor(K_MEMBERS / 2);
+    const out = new Array(K_MEMBERS);
+    for (let k = 0; k <= half; k++) {
+      const q = abs[clamp(Math.floor((k + 0.5) / (half + 1) * abs.length), 0, abs.length - 1)];
+      out[k] = -q;
+      out[K_MEMBERS - 1 - k] = k === half && K_MEMBERS % 2 ? 0 : q;
     }
     return out;
   }
@@ -407,6 +483,14 @@
     const rank = new Array(K_MEMBERS + 1).fill(0);
     let rankN = 0;
     const targets = [['p10', 0.1], ['p25', 0.25], ['p50', 0.5], ['p75', 0.75], ['p90', 0.9]];
+    /*
+     * Coverage is the honest calibration measure. spread/rmse assumes the error
+     * distribution looks like the fan, which is false for a heavy-tailed
+     * variable: rain's error lives in a handful of hours, so the ratio says
+     * "underdispersed" even when the 80% interval actually hits its target.
+     */
+    const cov = { '50': 0, '80': 0, full: 0 };
+    let coverN = 0;
     for (let i = 0; i < members.length; i++) {
       const mem = members[i], y = obs[i];
       if (!mem || !finite(y)) continue;
@@ -428,6 +512,13 @@
       }
       const med = quantile(s, 0.5);
       if (med !== null) { sqErr += (med - y) ** 2; en++; }
+      const q10 = quantile(s, 0.1), q25 = quantile(s, 0.25), q75 = quantile(s, 0.75), q90 = quantile(s, 0.9);
+      if (q10 !== null && q25 !== null && q75 !== null && q90 !== null) {
+        cov['50'] += (y >= q25 && y <= q75) ? 1 : 0;
+        cov['80'] += (y >= q10 && y <= q90) ? 1 : 0;
+        cov['full'] += (y >= s[0] && y <= s[s.length - 1]) ? 1 : 0;
+        coverN++;
+      }
     }
     const step = Math.max(1, Math.floor(K_MEMBERS / 10));
     const rankHistogram = new Array(11).fill(0);
@@ -453,6 +544,14 @@
       spreadSkill: (spread !== null && rmse) ? spread / rmse : null,
       rangeMean: n ? (hiSum - loSum) / n : null,
       rankHistogram, rankDeviation: rankN ? Math.sqrt(chi) : null,
+      // Share of hours where the truth fell inside the stated interval. A
+      // well-calibrated 80% interval should land near 0.80.
+      coverage: coverN ? {
+        n: coverN,
+        p25p75: cov['50'] / coverN,
+        p10p90: cov['80'] / coverN,
+        full: cov.full / coverN,
+      } : null,
     };
   }
 
@@ -464,6 +563,11 @@
     if (fb.length < blockHours * 2 || fb.length !== fm.length) return null;
     const rmseB = Math.sqrt(fb.reduce((s, v) => s + v, 0) / fb.length);
     const rmseM = Math.sqrt(fm.reduce((s, v) => s + v, 0) / fm.length);
+    // A baseline with zero error cannot be improved on: the relative skill is
+    // undefined and every resample collapses onto the same degenerate value.
+    // Snowfall at these latitudes is the real case — every system and ERA5
+    // agree the sky is dry — so there is nothing to measure here.
+    if (!(rmseB > 0)) return null;
     const blocks = Math.ceil(n / blockHours);
     const rand = rng(seed);
     const diffs = [];
@@ -631,7 +735,14 @@
       const best = bestSingle(spec, trIdx, inverse);
       const cands = [{ key: 'mean:-', predict: i => spec.mean[i] }];
       if (best.id !== null) cands.push({ key: 'best:-', predict: i => spec.vals[spec.modelIds.indexOf(best.id)][i] });
-      for (const lam of LAMBDA_GRID) {
+      /*
+       * A combination needs at least two systems to combine. With one usable
+       * system an NNLS or ridge fit is not a blend at all: it is that system
+       * plus an intercept, and reporting it as a multi-model calibration would
+       * overstate what the ensemble can do. Only the two honest families are
+       * offered in that case.
+       */
+      for (const lam of spec.modelIds.length >= 2 ? LAMBDA_GRID : []) {
         const w = solveNNLS(m, lam);
         if (w) {
           const mo = linearModel('nnls', w, m);
@@ -717,18 +828,21 @@
     const bestOnAll = bestSingle(spec, fitIdx, inverse);
 
     let model = null;
-    if (winner.family === 'emos') {
+    if (winner.family === 'emos' && spec.modelIds.length >= 2) {
       const b = solveRidge(mAll, winner.lambda);
       if (b) model = linearModel('emos', b, mAll);
-    } else if (winner.family === 'nnls') {
+    } else if (winner.family === 'nnls' && spec.modelIds.length >= 2) {
       model = linearModel('nnls', solveNNLS(mAll, winner.lambda), mAll);
     } else if (winner.family === 'best' && bestOnAll.id !== null) {
       model = { family: 'best', singleModel: bestOnAll.id };
     } else {
       model = { family: 'mean', modelIds: spec.modelIds };
     }
+    // Single-system locations cannot produce a blend; report the family that was
+    // actually fitted rather than the one the winner key named.
+    const family = model.family;
     return {
-      model, winner, table, fitRows: fitIdx.length, bestSingle: bestOnAll,
+      model, winner, table, family, fitRows: fitIdx.length, bestSingle: bestOnAll,
       cvStandardError: winner.gapSe ?? 0,
       cvThreshold: top.cvRmse + (winner.gap ?? 0),
       cvGap: winner.gap ?? 0,
@@ -898,12 +1012,108 @@
       sq.push((p - forward(obs[i])) ** 2);
     }
     const sg = sigma2(spreadSq, sq);
+
+    /*
+     * Split the forecast error into the part sigma2 explains and the part it
+     * cannot. The standardised residual z = (physical error) / (predicted sd)
+     * isolates the shape that a one-parameter variance model throws away, and
+     * that shape becomes the fan template. Both halves are needed: the template
+     * alone would make every hour as uncertain as the worst hour, and sigma2
+     * alone would make every hour as certain as the calmest one.
+     */
+    const sdOf = i => Math.sqrt(Math.max(sg.alpha + sg.beta * spec.spread[i] ** 2, 0));
+    const zResid = [];
+    for (const i of trainIdx) {
+      const p = predict(i);
+      if (!finite(p)) continue;
+      const e = inverse(p) - obs[i];
+      // Standardise in physical units: the same units the fan is drawn in.
+      const s = sdOf(i) * jacobian(vspec.kind, p);
+      if (finite(e) && s > 1e-6) zResid.push(e / s);
+    }
+    /*
+     * Intermittent variables keep the ASYMMETRIC shape. Their error really is
+     * one-sided — the sky does more than the forecast said — and a symmetric fan
+     * would put half its width on the side that never errs. Smooth variables
+     * keep the symmetric one, so the fitting window's bias cannot travel with
+     * the fan.
+     */
+    const zAbs = zResid.filter(v => finite(v)).map(v => Math.abs(v));
+    let obsZeros = 0, obsSeen = 0;
+    for (const i of trainIdx) {
+      const v = obs[i];
+      if (!finite(v)) continue;
+      obsSeen++;
+      if (v <= 0) obsZeros++;
+    }
+    const asymmetric = obsSeen > 0 && obsZeros / obsSeen > 0.5;
+    const template = residualTemplate(zResid, !asymmetric);
+
+    /*
+     * One multiplier, fitted on the fitting window, so the fan's central band
+     * actually covers what it claims.
+     *
+     * sigma2 targets the RMS error, and the RMS is inflated by the tail. For a
+     * heavy-tailed variable that means a fan sized to the RMS is comfortably
+     * right on average yet far too narrow through its middle, so the 10–90
+     * band lands at 60% instead of 80% and the app under-covers exactly where a
+     * reader looks first. Multiplying the whole fan by a single factor, chosen so
+     * the 10–90 band covers 80% of the fitting-window outcomes, fixes the middle
+     * without pretending the tail is narrower than it is.
+     *
+     * It is fitted on the training window only. The score window is left
+     * untouched so the reported coverage is a real verification.
+     */
+    const zSorted = zResid.filter(finite).sort((a, b) => a - b);
+    /*
+     * The band only has to contain an observation when the standardised residual
+     * falls between the fan's 10th and 90th node: the scale cancels on both
+     * sides. So coverage is a property of the sorted residual array alone, and
+     * the search below is two binary searches per step instead of a pass over
+     * every fitting hour.
+     */
+    const bandCover = k => {
+      if (zSorted.length < 200) return null;
+      const base = template || Z_NODES;
+      const nodes = base.map(v => v * k).sort((a, b) => a - b);
+      const loZ = nodes[Math.floor(0.1 * K_MEMBERS)];
+      const hiZ = nodes[Math.ceil(0.9 * K_MEMBERS) - 1];
+      // Sorted bounds: count inside [loZ, hiZ] as high(loZ) .. high(hiZ).
+      const above = v => {
+        let a = 0, b = zSorted.length;
+        while (a < b) { const m = (a + b) >> 1; if (zSorted[m] < v) a = m + 1; else b = m; }
+        return a;
+      };
+      return (above(hiZ) - above(loZ)) / zSorted.length;
+    };
+    let mult = 1;
+    if (template) {
+      // Smallest factor whose 10–90 band covers 80% of the fitting window.
+      // Coverage rises with the factor, so the invariant is: lo is too narrow,
+      // hi is wide enough. Each step keeps the answer inside [lo, hi].
+      let lo = 0.25, hi = 6;
+      const wide = bandCover(hi);
+      if (wide !== null && wide >= 0.8) {
+        for (let it = 0; it < 26; it++) {
+          const mid = Math.sqrt(lo * hi);
+          const c = bandCover(mid);
+          if (c !== null && c >= 0.8) hi = mid; else lo = mid;
+        }
+        mult = hi;
+      } else if (wide !== null) {
+        // Even the widest allowed fan cannot reach 80%: keep the fan honest and
+        // say so rather than inflating the numbers to fit the target.
+        mult = 6;
+      }
+    }
+    sg.template = template;
+    sg.mult = mult;
     const lo = vspec.kind === 'logit' ? 0 : (vspec.kind === 'log1p' ? 0 : null);
     const hi = vspec.kind === 'logit' ? 100 : null;
 
     const memberSets = testIdx.map(i => {
       const p = predict(i);
-      return finite(p) ? pseudoMembers(vspec.kind, p, Math.sqrt(sg.alpha + sg.beta * spec.spread[i] ** 2), lo, hi) : null;
+      return finite(p) ? pseudoMembers(vspec.kind, p, sdOf(i), lo, hi, template, mult) : null;
     });
     const medians = memberSets.map(m => (m ? quantile(m, 0.5) : null));
     const means = memberSets.map(m => (m ? meanS(m) : null));
@@ -935,7 +1145,9 @@
     return {
       ...base, usable: true,
       selected: {
-        family: sel.winner.family, lambda: sel.winner.lambda,
+        // sel.family is what was actually fitted; with a single usable system it
+        // falls back from the blend families to the honest one.
+        family: sel.family, lambda: sel.winner.lambda,
         cvRmse: round(sel.winner.cvRmse, 5), cvN: sel.winner.cvN,
         // How much the selection is allowed to differ from the CV minimum.
         // Paired gap against the cross-validation leader, and its standard error.
@@ -950,6 +1162,7 @@
         cvRmse: round(c.cvRmse, 5), cvN: c.cvN,
         cvGap: round(c.gap, 5), cvGapSe: round(c.gapSe, 5),
         chosen: c.family === sel.winner.family && c.lambda === sel.winner.lambda,
+        fitted: c.family === sel.family && c.lambda === sel.winner.lambda,
       })),
       calibration: calibrationBundle(sel, spec, usable, crossVars, fill.map(f => forward(f)), sg, vspec.kind),
       bestSingle: { id: sel.bestSingle.id, name: opts.modelNames?.[sel.bestSingle.id] || null, test: pointScores(testIdx.map(i => { const j = usable.indexOf(sel.bestSingle.id); return j >= 0 ? series[usable[j]][i] : null; }), testObs) },
@@ -971,6 +1184,9 @@
   /** Serializable calibration the browser applies to a live forecast. */
   function calibrationBundle(sel, spec, usable, crossVars, crossFill, sg, kind) {
     const labels = ['mean', 'spread', ...usable, ...crossVars, 'sinHour', 'cosHour', 'sinYear', 'cosYear'];
+    const sigma = { alpha: round(sg.alpha, 8), beta: round(sg.beta, 8) };
+    if (sg.template) sigma.template = sg.template.map(v => round(v, 5));
+    if (sg.mult && Math.abs(sg.mult - 1) > 1e-4) sigma.mult = round(sg.mult, 5);
     if (sel.model.family === 'emos' || sel.model.family === 'nnls') {
       return {
         family: sel.model.family, kind,
@@ -979,14 +1195,14 @@
         centre: sel.model.mu.map(v => round(v, 6)),
         scale: sel.model.sd.map(v => round(v, 6)),
         modelIds: usable, crossVars, crossMean: crossFill.map(v => round(v, 6)),
-        sigma2: { alpha: round(sg.alpha, 8), beta: round(sg.beta, 8) },
+        sigma2: sigma,
         labels,
       };
     }
     if (sel.model.family === 'best') {
-      return { family: 'best', kind, singleModel: sel.model.singleModel, modelIds: usable, sigma2: { alpha: round(sg.alpha, 8), beta: round(sg.beta, 8) }, labels };
+      return { family: 'best', kind, singleModel: sel.model.singleModel, modelIds: usable, sigma2: sigma, labels };
     }
-    return { family: 'mean', kind, modelIds: usable, sigma2: { alpha: round(sg.alpha, 8), beta: round(sg.beta, 8) }, labels };
+    return { family: 'mean', kind, modelIds: usable, sigma2: sigma, labels };
   }
 
   /** Rolling 24-hour accumulation, which is how rain warnings are phrased. */
@@ -1219,6 +1435,15 @@
         chosen: c.family === sel.winner.family && c.lambda === sel.winner.lambda,
       })),
       calibration: {
+        // Direction is fitted as two vector components, so the coefficients live
+        // in the per-component bundles below. The top level repeats the family
+        // and the model list so consumers can treat every calibrated variable
+        // the same way without special-casing the direction kind.
+        family: sel.winner.family,
+        modelIds: usable,
+        components: 2,
+        sigma2: { alpha: 0, beta: 0 },
+        labels: ['mean', 'spread', ...usable, ...crossVars, 'sinHour', 'cosHour', 'sinYear', 'cosYear'],
         u: calibrationBundle({ model: sel.model.u, winner: { family: sel.winner.family, lambda: sel.winner.lambda, cvRmse: sel.winner.cvAngle } }, su, usable, crossVars, fill, { alpha: 0, beta: 0 }, 'gauss'),
         v: calibrationBundle({ model: sel.model.v, winner: { family: sel.winner.family, lambda: sel.winner.lambda, cvRmse: sel.winner.cvAngle } }, sv, usable, crossVars, fill, { alpha: 0, beta: 0 }, 'gauss'),
       },
@@ -1268,9 +1493,12 @@
       return best;
     };
     const pred = [], truth = [];
+    const predAt = new Map();          // test index -> kNN prediction, for paired scoring
     for (const i of testIdx) {
       if (!Z[i] || !finite(obs[i])) continue;
-      pred.push(predict(Z[i].map((v, j) => (v - mu[j]) / sg[j])));
+      const p = predict(Z[i].map((v, j) => (v - mu[j]) / sg[j]));
+      pred.push(p);
+      predAt.set(i, p);
       truth.push(obs[i]);
     }
     let exact = 0, group = 0;
@@ -1308,16 +1536,28 @@
       table.push({ key, code: best, support: e.total, purity: bestN / e.total });
     }
     // Verify the lookup itself on the score window, so its cost is known.
+    //
+    // The lookup only answers on rows whose cell cleared the support threshold,
+    // so its hit rate is reported next to the accuracy. Comparing that accuracy
+    // against the kNN figure over *all* rows would flatter the table, because it
+    // is scored on the easier subset; the honest comparison scores both
+    // classifiers on exactly the same rows.
     let lkExact = 0, lkGroup = 0, lkN = 0;
+    let knnExact = 0, knnGroup = 0;
     const fullTable = {};
     for (const row of table) fullTable[row.key] = row.code;
+    let scorable = 0;
     for (const i of testIdx) {
       if (!Z[i] || !finite(obs[i])) continue;
+      scorable++;
       const key = regimeKey(Z[i], REGIME_EDGES);
       if (!key || !(key in fullTable)) continue;
       lkN++;
       if (fullTable[key] === obs[i]) { lkExact++; lkGroup++; }
       else if (condGroup(fullTable[key]) === condGroup(obs[i])) lkGroup++;
+      const kp = predAt.get(i);
+      if (kp === obs[i]) { knnExact++; knnGroup++; }
+      else if (condGroup(kp) === condGroup(obs[i])) knnGroup++;
     }
     table.sort((a, b) => a.key.localeCompare(b.key));
 
@@ -1338,8 +1578,14 @@
         minSupport: REGIME_MIN_SUPPORT,
                 cells: table,
         lookupN: lkN,
+        // Rows the table can answer at all; the browser falls back to a plain
+        // multi-model average on the rest.
+        coverage: scorable ? lkN / scorable : null,
         accuracy: lkN ? lkExact / lkN : null,
         accuracyGroup: lkN ? lkGroup / lkN : null,
+        // kNN restricted to the same rows, so the table is judged fairly.
+        knnAccuracySameRows: lkN ? knnExact / lkN : null,
+        knnAccuracyGroupSameRows: lkN ? knnGroup / lkN : null,
       },
     };
   }
@@ -1430,13 +1676,17 @@
       const spread = c > 1 ? Math.sqrt(Math.max(0, s2 / c - mean * mean)) : 0;
       const mu = predictFromCalibration(calib, { mean, byId }, spread, hourOf(times, i, opts.utcOffset), dayOfYear(times, i), crossCols.map(col => col[i]));
       if (!finite(mu)) { out[i] = null; continue; }
-      const sd = Math.sqrt(Math.max(calib.sigma2.alpha + calib.sigma2.beta * spread * spread, 1e-6));
-      const mem = pseudoMembers(vspec.kind, mu, sd, lo, hi);
+      // Width from sigma2 and shape from the shipped residual template: the same two
+      // halves the backtest used, so the browser's fan is the verified one.
+      const sd = Math.sqrt(Math.max(calib.sigma2.alpha + calib.sigma2.beta * spread * spread, 0));
+      const mem = pseudoMembers(vspec.kind, mu, sd, lo, hi, calib.sigma2.template, calib.sigma2.mult);
       const rec = {
         mean: meanS(mem), median: quantile(mem, 0.5),
         p02: quantile(mem, 0.02), p10: quantile(mem, 0.1), p25: quantile(mem, 0.25),
         p75: quantile(mem, 0.75), p90: quantile(mem, 0.9), p98: quantile(mem, 0.98),
         low: mem[0], high: mem[K_MEMBERS - 1], sd, spread, nModels: c,
+        // The width actually drawn, so the chart and the table cannot disagree.
+        sdPhysical: sdS(mem) ?? null,
       };
       if (vspec.thresholds) {
         rec.probs = {};

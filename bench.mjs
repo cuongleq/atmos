@@ -299,7 +299,12 @@ if (!only) {
 
 /* ---------- report ---------- */
 
-const scored = locations.flatMap(l => l.tests).filter(t => t.usable && t.mean?.rmse != null && t.equalMean?.rmse != null);
+// A test is only scoreable when the equal-weight baseline has real error to beat.
+// Snowfall over Vietnam is dry in every system and in ERA5, so the baseline RMSE
+// is exactly zero and relative skill is undefined — counting those would either
+// manufacture a failure or divide by zero.
+const scored = locations.flatMap(l => l.tests)
+  .filter(t => t.usable && t.mean?.rmse != null && t.equalMean?.rmse > 0);
 const skill = arr => arr.filter(x => finite(x));
 const meanOf = (arr, f) => {
   const v = arr.map(f).filter(finite);
@@ -321,6 +326,9 @@ const report = {
   }])),
   headline: {
     evaluated: scored.length,
+    // Listed so the UI can say out loud what was left out and why.
+    unscoredVariables: [...new Set(locations.flatMap(l => l.tests)
+      .filter(t => t.usable && !(t.equalMean?.rmse > 0)).map(t => t.variable))],
     meanSkillVsEqualWeight: meanOf(scored, t => 1 - t.mean.rmse / t.equalMean.rmse),
     meanSkillVsBestSingle: meanOf(scored.filter(t => t.bestSingle?.test?.rmse > 0), t => 1 - t.mean.rmse / t.bestSingle.test.rmse),
     betterThanEqualWeight: scored.filter(t => t.mean.rmse < t.equalMean.rmse).length,

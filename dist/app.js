@@ -2725,3 +2725,8 @@ renderNchmf();
 renderProtocol();
 renderTest();
 loadForecast();
+
+// Automatically request device location on startup if supported
+if (navigator.geolocation && window.isSecureContext) {
+  setTimeout(useDeviceLocation, 800);
+}

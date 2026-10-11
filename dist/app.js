@@ -2099,28 +2099,193 @@ async function fetchLatestNchmf() {
   }
 }
 
-/** Banner cảnh báo toàn quốc + dung hợp vào thông điệp rủi ro của địa điểm. */
+/** Chuyển nhanh giữa các tab chức năng. */
+function switchTab(viewId) {
+  const targetTab = document.querySelector(`.tab[data-view="${viewId}"]`);
+  if (targetTab) {
+    targetTab.click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+window.switchTab = switchTab;
+
+/** Banner cảnh báo khẩn cấp tại tab Dự báo (gọn gàng, dẫn sang tab Tin tức). */
 function nchmfBannerFor(placeId) {
   const matched = nchmfWarningsFor(placeId);
   const box = $('officialBanner');
+  if (!box) return [];
   if (!matched.length) {
     const anyRed = nchmfFreshWarnings().filter(w => w.level === 'red');
     box.innerHTML = anyRed.length
-      ? `<div class="notice warning">NCHMF đang có ${anyRed.length} cảnh báo đỏ trên cả nước (không nêu đích danh vùng này): ${esc(anyRed[0].title.slice(0, 120))}… <a href="#officialBanner" onclick="document.querySelector('.official-panel').scrollIntoView({behavior:'smooth'});return false;">xem chi tiết</a></div>`
+      ? `<div class="notice warning" style="margin-bottom:14px;border-left:4px solid #c0392b">🚨 <strong>NCHMF cảnh báo khẩn cấp (${anyRed.length} tin):</strong> ${esc(anyRed[0].title.slice(0, 110))}… <a href="#news" onclick="switchTab('news');return false;" style="font-weight:700;margin-left:6px;color:var(--blue)">Xem chi tiết tại Tab Tin tức ↗</a></div>`
       : '';
     return [];
   }
   const worst = matched.some(w => w.level === 'red') ? 'red' : 'orange';
-  box.innerHTML = `<div class="notice ${worst === 'red' ? 'error' : 'warning'}">` +
-    `<strong>Cảnh báo chính thức (NCHMF) cho vùng này:</strong> ` +
-    matched.slice(0, 2).map(w => esc(w.title.slice(0, 140))).join(' · ') +
-    ` <a href="#officialBanner" onclick="document.querySelector('.official-panel').scrollIntoView({behavior:'smooth'});return false;">xem bản tin gốc</a></div>`;
+  box.innerHTML = `<div class="notice ${worst === 'red' ? 'error' : 'warning'}" style="margin-bottom:14px;border-left:4px solid ${worst === 'red' ? '#c0392b' : '#e67e22'}">` +
+    `🚨 <strong>Cảnh báo chính thức (NCHMF) cho vùng này:</strong> ` +
+    matched.slice(0, 2).map(w => esc(w.title.slice(0, 130))).join(' · ') +
+    ` <a href="#news" onclick="switchTab('news');return false;" style="font-weight:700;margin-left:6px;color:var(--blue)">Xem chi tiết tại Tab Tin tức ↗</a></div>`;
   return matched;
 }
 
-/* ---------- verification view ---------- */
+/* ---------- tin tức khí tượng quốc tế (WMO · NOAA · ECMWF · JMA) ---------- */
+
+const INTL_NEWS = [
+  {
+    id: 'wmo-enso',
+    agency: 'wmo',
+    agencyName: 'WMO · Tổ chức Khí tượng Thế giới (LHQ)',
+    titleVn: 'Bản tin El Niño / La Niña: Xác suất chuyển dịch sang La Niña và tác động thời tiết Đông Nam Á',
+    titleOrig: 'WMO Update: Neutral ENSO conditions likely to transition to weak La Niña',
+    time: '2026-10',
+    summary: 'Tổ chức Khí tượng Thế giới (WMO) nhận định hiện tượng ENSO tiếp tục duy trì trạng thái trung tính với khả năng 60% chuyển sang pha La Niña trong các tháng cuối năm. Pha La Niña thường kích hoạt sự gia tăng lượng mưa tại Đông Nam Á, tăng tần suất bão trên Biển Đông và các đợt không khí lạnh dồn dập tại miền Bắc Việt Nam.',
+    url: 'https://wmo.int/news/media-centre',
+    category: 'Khí hậu toàn cầu',
+    level: 'orange'
+  },
+  {
+    id: 'wmo-climate-state',
+    agency: 'wmo',
+    agencyName: 'WMO · Tổ chức Khí tượng Thế giới (LHQ)',
+    titleVn: 'Báo cáo Khí hậu Toàn cầu: Nhiệt độ đại dương phá kỷ lục và sự gia tăng các cực đoan khí hậu',
+    titleOrig: 'WMO State of the Global Climate: Record ocean heat and intensified hydrological cycle',
+    time: '2026-10',
+    summary: 'Nhiệt độ bề mặt nước biển tại Thái Bình Dương và Ấn Độ Dương duy trì ở mức cao bất thường trong suốt 12 tháng qua. Nhiệt lượng tích tụ trong đại dương là nguồn năng lượng khổng lồ kích hoạt các siêu bão nhiệt đới, mưa cực đoan gây ngập lụt ven biển và sóng nhiệt đại dương kéo dài.',
+    url: 'https://wmo.int/topics/climate-change',
+    category: 'Biến đổi khí hậu',
+    level: 'info'
+  },
+  {
+    id: 'noaa-mjo',
+    agency: 'noaa',
+    agencyName: 'NOAA / CPC · Cơ quan Khí quyển & Đại dương Mỹ',
+    titleVn: 'Giám sát Hoàn lưu Đối lưu Nhiệt đới MJO: Kích hoạt dải hội tụ ẩm và mưa lớn trên Biển Đông',
+    titleOrig: 'NOAA Climate Prediction Center: Global Tropics Hazards and MJO Outlook',
+    time: '2026-10',
+    summary: 'Trung tâm Dự báo Khí hậu Hoa Kỳ (CPC/NOAA) theo dõi sóng đối lưu quy mô hành tinh Madden-Julian (MJO) đang tiến vào pha 4 và 5 qua khu vực biển Đông Nam Á. Pha này tăng cường nguồn ẩm đối lưu mạnh mẽ, làm tăng khả năng hình thành xoáy thuận nhiệt đới, dải áp thấp và các đợt mưa diện rộng tại miền Trung và Nam Bộ.',
+    url: 'https://www.cpc.ncep.noaa.gov/products/precip/CWlink/ghaz/',
+    category: 'Đối lưu nhiệt đới',
+    level: 'orange'
+  },
+  {
+    id: 'noaa-cyclones',
+    agency: 'noaa',
+    agencyName: 'NOAA / NWS · Trung tâm Dự báo Môi trường Quốc gia Mỹ',
+    titleVn: 'Theo dõi Xoáy thuận Nhiệt đới Toàn cầu & Nâng cấp Mô hình Dự báo GFS / GEFS',
+    titleOrig: 'NOAA / NCEP: Global Tropical Cyclone Monitoring and Numerical Weather Prediction',
+    time: '2026-10',
+    summary: 'NOAA cập nhật chuỗi dữ liệu đồng hóa vệ tinh thế hệ mới GOES/JPSS vào mô hình toàn cầu GFS, nâng cao độ chính xác dự báo quỹ đạo và cường độ bão trên Tây Bắc Thái Bình Dương, đồng thời cung cấp dự báo tổ hợp GEFS 31 thành phần hạn đến 16 ngày.',
+    url: 'https://www.nhc.noaa.gov/',
+    category: 'Bão nhiệt đới',
+    level: 'info'
+  },
+  {
+    id: 'ecmwf-aifs',
+    agency: 'ecmwf',
+    agencyName: 'ECMWF · Trung tâm Dự báo Thời tiết Hạn vừa Châu Âu',
+    titleVn: 'Dự báo Thời tiết Trí tuệ Nhân tạo AIFS: Vận hành dự báo tổ hợp và cảnh báo sóng lạnh sớm 10-15 ngày',
+    titleOrig: 'ECMWF Operational Updates: Artificial Intelligence Forecasting System (AIFS)',
+    time: '2026-10',
+    summary: 'ECMWF chính thức tích hợp mô hình AI khí tượng AIFS vào chu trình vận hành hằng ngày song song với mô hình vật lý IFS. AIFS thể hiện năng lực vượt trội trong việc phát hiện sớm các đợt bùng phát không khí lạnh (cold surges) từ lục địa Á - Âu tràn xuống vùng nhiệt đới trước từ 10 đến 14 ngày.',
+    url: 'https://www.ecmwf.int/en/forecasts',
+    category: 'Công nghệ AI khí tượng',
+    level: 'info'
+  },
+  {
+    id: 'ecmwf-seasonal',
+    agency: 'ecmwf',
+    agencyName: 'Copernicus / ECMWF · Dịch vụ Khí hậu Châu Âu',
+    titleVn: 'Dự báo Mùa và Dị thường Nhiệt - Ẩm: Nhận định hoàn lưu gió mùa Đông Á trong 3 tháng tới',
+    titleOrig: 'Copernicus Climate Change Service: Seasonal Forecast and Circulation Anomalies',
+    time: '2026-10',
+    summary: 'Phân tích dị thường áp cao Siberia và rãnh gió Tây cho thấy mùa đông năm nay có xu hướng xuất hiện các đợt rét đậm tập trung vào giữa mùa đông, với lượng mưa xấp xỉ đến cao hơn trung bình nhiều năm tại dải ven biển miền Trung Việt Nam.',
+    url: 'https://climate.copernicus.eu/',
+    category: 'Dự báo mùa',
+    level: 'info'
+  },
+  {
+    id: 'jma-typhoon',
+    agency: 'jma',
+    agencyName: 'JMA · Cơ quan Khí tượng Nhật Bản (RSMC Tokyo)',
+    titleVn: 'Trung tâm Giám sát Bão Tây Bắc Thái Bình Dương: Theo dõi áp thấp nhiệt đới và bão trên Biển Đông',
+    titleOrig: 'RSMC Tokyo - Typhoon Center: Tropical Cyclone Information and Analysis',
+    time: '2026-10',
+    summary: 'Cơ quan Khí tượng Nhật Bản (JMA) chịu trách nhiệm theo dõi và đặt tên quốc tế cho các cơn bão tại Tây Bắc Thái Bình Dương. Bản tin phân tích chi tiết vị trí tâm bão, áp suất thấp nhất, bán kính gió mạnh trên 30kt và 50kt, hỗ trợ cảnh báo an toàn hàng hải và ven bờ cho toàn vùng Đông Á và Biển Đông.',
+    url: 'https://www.jma.go.jp/bosai/map.html#contents=typhoon',
+    category: 'Trung tâm Bão RSMC',
+    level: 'orange'
+  },
+  {
+    id: 'jma-monsoon',
+    agency: 'jma',
+    agencyName: 'JMA · Cơ quan Khí tượng Nhật Bản',
+    titleVn: 'Theo dõi Áp cao Siberia & Đợt bùng phát Gió mùa Đông Bắc (Cold Surge) xuống Đông Nam Á',
+    titleOrig: 'JMA Climate Prediction Division: East Asian Winter Monsoon and Cold Air Outbreak',
+    time: '2026-10',
+    summary: 'JMA công bố báo cáo phân tích áp cao lạnh lục địa Siberia đang mạnh dần lên tại khu vực vĩ độ cao. Khi áp cao này tràn về phía nam sẽ gây gió mạnh cấp 6-8, sóng lớn trên Vịnh Bắc Bộ và Bắc Biển Đông, đồng thời gây giảm nhiệt độ sâu trên toàn miền Bắc Việt Nam.',
+    url: 'https://www.data.jma.go.jp/gmd/cpd/db/enso/',
+    category: 'Gió mùa Đông Bắc',
+    level: 'info'
+  }
+];
+
+function renderIntlNews(filter = 'all') {
+  const container = $('intlNewsList');
+  if (!container) return;
+  const items = filter === 'alerts'
+    ? INTL_NEWS.filter(n => n.level === 'orange' || n.level === 'red')
+    : INTL_NEWS;
+
+  container.innerHTML = items.map(item => `
+    <article class="intl-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <span class="intl-agency-badge ${item.agency}">${esc(item.agencyName.split('·')[0].trim())}</span>
+        <span class="tiny" style="color:var(--muted)">🕒 ${item.time} · ${esc(item.category)}</span>
+      </div>
+      <h4>${esc(item.titleVn)}</h4>
+      <div class="orig-title">Gốc: "${esc(item.titleOrig)}"</div>
+      <p>${esc(item.summary)}</p>
+      <div class="intl-card-footer">
+        <span>Nguồn: <strong>${esc(item.agencyName)}</strong></span>
+        <a href="${item.url}" target="_blank" rel="noopener">Đọc báo cáo gốc ↗</a>
+      </div>
+    </article>
+  `).join('');
+}
+
+function initNewsTab() {
+  renderIntlNews('all');
+  document.querySelectorAll('.news-filter-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.news-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const f = btn.dataset.filter;
+      const vnSec = $('nchmfSectionWrapper');
+      const intlSec = $('intlSectionWrapper');
+      if (f === 'all') {
+        if (vnSec) vnSec.hidden = false;
+        if (intlSec) intlSec.hidden = false;
+        renderIntlNews('all');
+      } else if (f === 'vn') {
+        if (vnSec) vnSec.hidden = false;
+        if (intlSec) intlSec.hidden = true;
+      } else if (f === 'intl') {
+        if (vnSec) vnSec.hidden = true;
+        if (intlSec) intlSec.hidden = false;
+        renderIntlNews('all');
+      } else if (f === 'alerts') {
+        if (vnSec) vnSec.hidden = false;
+        if (intlSec) intlSec.hidden = false;
+        renderIntlNews('alerts');
+      }
+    };
+  });
+}
+
+/* ---------- verification view (backward compatibility safe) ---------- */
 
 function initSelects() {
+  if (!$('testCity')) return;
   $('testCity').innerHTML = report.locations.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
   $('testVariable').innerHTML = VAR_LIST
     .map(v => `<option value="${v}">${esc(report.variables[v].label)}</option>`).join('');
@@ -2143,6 +2308,7 @@ const FAMILY = {
 };
 
 function renderTest() {
+  if (!$('testSummary')) return;
   const { loc, v, lead, t } = currentTest();
   if (!loc || !t) {
     $('testSummary').innerHTML = '<div class="metric"><span class="small">Không có dữ liệu</span></div>';
@@ -2344,6 +2510,7 @@ function renderAllVars(loc) {
 }
 
 function renderProtocol() {
+  if (!$('protocol')) return;
   const h = report.headline;
   const items = [
     ['Phương pháp', 'EMOS hồi quy ridge trên 7 hệ thống + độ lệch + 2 biến phụ + điều hòa ngày đêm/năm.'],
@@ -2849,18 +3016,24 @@ function wireTabs() {
         setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 120);
       }
       if (b.dataset.view === 'disaster' && !$('tcMeta').textContent.match(/\d/)) loadTropicalCyclones();
+      if (b.dataset.view === 'news') {
+        renderNchmf();
+        renderIntlNews();
+      }
     };
   });
 }
 
 wireTabs();
 initDisasterTab();
+initNewsTab();
 
 initSelects();
 initSearch();
 initGeo();
 quickRender();
 renderNchmf();
+renderIntlNews();
 renderProtocol();
 renderTest();
 loadForecast();

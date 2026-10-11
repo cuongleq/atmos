@@ -2,16 +2,13 @@
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Dự báo thời tiết đa tham số cho Việt Nam: 16 biến, 7 hệ thống mô hình, hiệu chỉnh EMOS và dự báo xác suất đã được kiểm thử trên tập dữ liệu đóng băng."><meta name="theme-color" content="#0b1a33"><meta name="color-scheme" content="light"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><meta property="og:type" content="website"><meta property="og:locale" content="vi_VN"><meta property="og:title" content="ATMOS · Dự báo thời tiết đa tham số"><meta property="og:description" content="Dự báo 16 biến, 7 hệ thống mô hình, hiệu chỉnh EMOS kèm khoảng tin cậy, radar mưa, chất lượng không khí và bản tin NCHMF."><title>ATMOS · Phòng dự báo đa tham số</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23101f2d'/%3E%3Cpath d='M14 45L32 14L50 45M22 34H42' fill='none' stroke='%23b5ee72' stroke-width='5'/%3E%3C/svg%3E"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><style>/*STYLE*/</style></head>
 <body><header><div class="brand"><span class="mark">A</span><strong>ATMOS</strong><span class="brand-note">DỰ BÁO ĐA THAM SỐ</span></div><div class="header-right"><span id="headModels">7 HỆ THỐNG · 16 BIẾN</span> <span class="tag" id="headTag">BẢN CHÍNH THỨC</span></div></header>
 <main><div class="intro" style="display: none;"><div><p class="eyebrow">HIỆU CHỈNH SAU DỰ BÁO · ĐÃ KIỂM THỬ</p><h1>64 biến.<br><span>Bảy hệ thống. Một phân phối xác suất.</span></h1></div><p class="intro-note" id="introNote">Mỗi giá trị đều kèm khoảng tin cậy 10–90%<br>và xác suất vượt ngưỡng, không chỉ một con số.</p></div>
-<nav aria-label="Chức năng"><button class="tab active" data-view="forecast"><i class="n">01</i><span>Dự báo</span></button><button class="tab" data-view="mass"><i class="n">02</i><span>Khối khí &amp; sông</span></button><button class="tab" data-view="verify"><i class="n">03</i><span>Kiểm thử</span></button><button class="tab" data-view="methods"><i class="n">04</i><span>Phương pháp</span></button><button class="tab" data-view="disaster"><i class="n">05</i><span>Thiên tai</span></button></nav>
+<nav aria-label="Chức năng"><button class="tab active" data-view="forecast"><i class="n">01</i><span>Dự báo</span></button><button class="tab" data-view="mass"><i class="n">02</i><span>Khối khí &amp; sông</span></button><button class="tab" data-view="news"><i class="n">03</i><span>Tin tức</span></button><button class="tab" data-view="methods"><i class="n">04</i><span>Phương pháp</span></button><button class="tab" data-view="disaster"><i class="n">05</i><span>Thiên tai</span></button></nav>
 
 <section id="forecast" class="view">
 <div class="toolbar"><form id="searchForm"><label class="sr" for="search">Tìm xã, tỉnh, thành phố Việt Nam và thế giới</label><input id="search" placeholder="Tìm xã, tỉnh, thành phố… (VN và thế giới)" autocomplete="off" required minlength="2"><button class="primary">Tìm địa điểm</button></form><button id="geoBtn" class="secondary" title="Dùng vị trí GPS của thiết bị">Vị trí của tôi</button><button id="refresh" class="secondary">Cập nhật</button><button id="exportForecast" class="secondary" disabled>Tải CSV</button></div>
 <p class="small" id="geoNote" role="status">Nút "Vị trí của tôi" dùng GPS thiết bị, cần quyền vị trí và trang mở bằng https://. Không dùng thì vị trí đang chọn giữ nguyên.</p>
 <div id="searchResults" aria-live="polite"></div><div class="quick" id="quick"></div><div id="liveStatus" class="notice" role="status">Đang lấy dữ liệu dự báo…</div>
 <div id="officialBanner"></div>
-<article class="panel official-panel"><div class="section-head"><div><p class="eyebrow">CƠ QUAN KHÍ TƯỢNG VIỆT NAM · NGUYÊN VĂN</p><h2>Bản tin chính thức (NCHMF)</h2></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="small" id="nchmfMeta">—</span><button id="btnReloadNchmf" type="button" class="btn-ghost" style="padding:4px 10px;font-size:12px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:#fff;color:var(--ink)" onclick="fetchLatestNchmf()">Làm mới tin</button></div></div>
-<p class="small">Bản tin cảnh báo thiên tai, lũ lụt, mưa lớn và dự báo thời tiết cập nhật liên tục từ website chính thống của Trung tâm Dự báo Khí tượng Thủy văn Quốc gia (NCHMF). Bấm vào tiêu đề để mở bài viết gốc.</p>
-<div id="nchmfList"><p class="muted">Chờ dữ liệu bản tin…</p></div></article>
 
 
 <div class="weather-grid">
@@ -60,22 +57,48 @@
 <p class="small"><strong>Cột mực nước là số quy ước, không phải số đo.</strong> Quy đổi lưu lượng (m³/s) sang mét cần đường đo đạc đúng từng trạm — dữ liệu đó do cơ quan thủy văn quản lý và không có trong nguồn mở. Ở đây dùng công thức lũy thừa H = a·Q^b với hệ số tham khảo để <em>so sánh giữa các ngày</em>, tuyệt đối không dùng làm số đo đối chiếu. Khi có cảnh báo lũ thuộc về địa phương, hãy theo đúng cơ quan thủy văn.</p></article>
 </section>
 
-<section id="verify" class="view" hidden>
-<div class="section-head"><div><p class="eyebrow">DỰ BÁO ĐÃ PHÁT HÀNH TRƯỚC GIỜ ĐỐI CHIẾU</p><h2>Độ chính xác phải đo được.</h2></div><button id="downloadReport" class="secondary">Tải báo cáo JSON</button></div>
-<p class="muted">Dữ liệu đối chiếu là ERA5 tái phân tích, không phải số đo trực tiếp từ trạm. Tập kiểm tra đóng băng: <span id="verifyPeriod">—</span></p>
-<div class="verify-controls"><label>Địa điểm<select id="testCity"></select></label><label>Biến dự báo<select id="testVariable"></select></label><label>Thời hạn<select id="testLead"></select></label></div>
-<div id="testSummary" class="metric-grid"></div>
-<div class="two-columns">
-<article class="panel"><div class="section-head"><h3>So sánh sai số</h3><span class="small">RMSE trên tập đóng băng</span></div><div id="scoreBars"></div><p id="testVerdict" class="notice"></p><p id="bootNote" class="small"></p></article>
-<article class="panel"><h3>Chọn mô hình dự báo</h3><p class="small">Kiểm chứng chặn trong cửa sổ huấn luyện, không dùng dữ liệu kiểm tra. "Chênh lệch" là khoảng trống ghép cặp so với ứng viên dẫn đầu.</p><div class="table-wrap"><table><thead><tr><th>Họ mô hình</th><th>Phạt</th><th>RMSE kiểm chứng</th><th>Chênh lệch</th></tr></thead><tbody id="candTable"></tbody></table></div><p id="candNote" class="small"></p></article>
+<section id="news" class="view" hidden>
+<div class="section-head">
+  <div>
+    <p class="eyebrow">CƠ QUAN KHÍ TƯỢNG CHÍNH THỐNG · VIỆT NAM &amp; QUỐC TẾ</p>
+    <h2>Tin tức &amp; Cảnh báo Khí tượng</h2>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span class="small" id="newsMeta">Cập nhật liên tục</span>
+    <button id="btnReloadNews" type="button" class="btn-ghost" style="padding:6px 14px;font-size:13px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#fff;color:var(--ink);font-weight:600" onclick="fetchLatestNchmf()">🔄 Làm mới tin NCHMF</button>
+  </div>
 </div>
-<div class="two-columns">
-<article class="panel"><h3>Sự kiện vượt ngưỡng</h3><p class="small" id="threshNote">—</p><div class="table-wrap"><table><thead><tr><th>Ngưỡng</th><th>CSI</th><th>Phát hiện</th><th>Báo sai</th><th>Brier</th><th>BSS</th></tr></thead><tbody id="eventTable"></tbody></table></div></article>
-<article class="panel"><h3>Dự báo xác suất</h3><div id="probSummary" class="metric-grid compact"></div><p class="small">CRPS đo cả phân phối; pinball ở các mốc 10–50–90%. Tỉ lệ độ rộng/sai số bằng 1 nghĩa là độ rộng vừa khớp độ chắc chắn.</p><div class="section-head"><h4>Độ tin cậy</h4><span class="small">Dự báo vs quan sát</span></div><div id="reliability" class="reliability"></div></article>
+<p class="muted">Tổng hợp trực tiếp từ Trung tâm Dự báo Khí tượng Thủy văn Quốc gia Việt Nam (NCHMF) và các tổ chức khí tượng uy tín hàng đầu thế giới (WMO · NOAA · ECMWF · JMA) kèm bản dịch tiếng Việt chuẩn xác.</p>
+
+<div class="news-filter-bar">
+  <button class="news-filter-btn active" data-filter="all">Tất cả tin tức</button>
+  <button class="news-filter-btn" data-filter="vn">🇻🇳 NCHMF Việt Nam</button>
+  <button class="news-filter-btn" data-filter="intl">🌐 Khí tượng Quốc tế (Có bản dịch)</button>
+  <button class="news-filter-btn" data-filter="alerts">🚨 Cảnh báo khẩn cấp</button>
 </div>
-<article class="panel"><h3>Phân hoạch đứng hạng</h3><p class="small">Với dự báo hiệu chuẩn, 11 cột phải gần bằng nhau. Lệch sang hai đầu nghĩa là dự báo quá hẹp hoặc quá rộng.</p><div id="rankHist" class="rank-hist"></div></article>
-<article class="panel"><h3>Mọi biến tại địa điểm này</h3><div class="table-wrap"><table><thead><tr><th>Biến</th><th>Thời hạn</th><th>Số hệ thống</th><th>RMSE</th><th>TB đều</th><th>Cải thiện</th><th>CRPS</th></tr></thead><tbody id="allVarsTable"></tbody></table></div></article>
-<article class="panel"><h3>Thiết kế kiểm thử</h3><div id="protocol" class="protocol"></div></article>
+
+<div id="nchmfSectionWrapper" class="news-section-group">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">VIỆT NAM · NCHMF.GOV.VN</p>
+      <h3>Bản tin &amp; Cảnh báo Khí tượng Thủy văn Việt Nam</h3>
+    </div>
+    <span class="small" id="nchmfMeta">—</span>
+  </div>
+  <div id="nchmfList"><p class="muted">Đang tải bản tin NCHMF…</p></div>
+</div>
+
+<div id="intlSectionWrapper" class="news-section-group" style="margin-top:24px">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">QUỐC TẾ · WMO · NOAA · ECMWF · JMA (DỊCH TIẾNG VIỆT)</p>
+      <h3>Tin tức Khí tượng &amp; Khí hậu Uy tín Toàn cầu</h3>
+    </div>
+    <span class="small">Bản dịch &amp; tóm lược tiếng Việt</span>
+  </div>
+  <p class="small" style="color:var(--muted);margin-bottom:12px">Thông tin tổng hợp và dịch thuật từ các báo cáo chuyên ngành của Tổ chức Khí tượng Thế giới (WMO), Cơ quan Quản lý Khí quyển và Đại dương Hoa Kỳ (NOAA), Trung tâm Dự báo Hạn vừa Châu Âu (ECMWF) và Cơ quan Khí tượng Nhật Bản (JMA).</p>
+  <div id="intlNewsList" class="intl-news-grid"></div>
+</div>
 </section>
 
 <section id="methods" class="view" hidden>

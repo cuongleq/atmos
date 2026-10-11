@@ -485,4 +485,28 @@ footer strong{color:#fff}
   .param-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
 }
 
+/* ==== Tab Tin tức Khí tượng & Quốc tế ==== */
+.news-filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 20px}
+.news-filter-btn{padding:8px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .18s ease}
+.news-filter-btn:hover{border-color:var(--blue);color:var(--ink)}
+.news-filter-btn.active{background:#172736;color:#fff;border-color:#172736}
+
+.news-section-group{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.03)}
+.intl-news-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:14px}
+.intl-card{background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;transition:all .2s ease}
+.intl-card:hover{box-shadow:0 6px 18px rgba(0,0,0,0.06);border-color:var(--blue);background:#fff;transform:translateY(-1px)}
+.intl-agency-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;width:fit-content;letter-spacing:0.4px;text-transform:uppercase}
+.intl-agency-badge.wmo{background:#0284c7;color:#fff}
+.intl-agency-badge.noaa{background:#1e40af;color:#fff}
+.intl-agency-badge.ecmwf{background:#0f766e;color:#fff}
+.intl-agency-badge.jma{background:#be123c;color:#fff}
+
+.intl-card h4{margin:0;font-size:15px;line-height:1.45;color:var(--ink);font-weight:700}
+.intl-card .orig-title{font-size:12px;font-style:italic;color:var(--muted);line-height:1.35;margin-top:-2px}
+.intl-card p{margin:0;font-size:13.5px;line-height:1.6;color:#334155}
+.intl-card-footer{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #eef2f6;font-size:12px;color:var(--muted)}
+.intl-card-footer a{color:var(--blue);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px}
+.intl-card-footer a:hover{text-decoration:underline}
+
+
 

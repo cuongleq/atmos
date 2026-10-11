@@ -7,6 +7,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '0 */3 * * *' # Tự động thu thập bản tin NCHMF mới nhất mỗi 3 giờ
 
 permissions:
   contents: read
@@ -25,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - run: node collect-nchmf.mjs
+        working-directory: .
       - run: node build.mjs
         working-directory: .
       - uses: actions/upload-pages-artifact@v3

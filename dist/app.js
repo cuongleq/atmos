@@ -1882,24 +1882,55 @@ function drawChart(times, rows, cal, values, spec, showBands, variable) {
 // Conservative: chỉ khớp khi tên được nêu đích danh trong tiêu đề.
 const NCHMF_REGIONS = {
   hanoi: ['HÀ NỘI', 'BẮC BỘ', 'ĐỒNG BẰNG BẮC BỘ', 'TÂY BẮC BỘ', 'ĐÔNG BẮC BỘ'],
-  danang: ['ĐÀ NẴNG', 'QUẢNG TRỊ', 'QUẢNG NGÃI', 'HUẾ', 'TRUNG BỘ', 'TRUNG TRUNG BỘ'],
-  dalat: ['ĐÀ LẠT', 'LÂM ĐỒNG', 'TÂY NGUYÊN', 'CAO NGUYÊN TRUNG BỘ'],
-  cantho: ['CẦN THƠ', 'HẬU GIANG', 'TÂY NAM BỘ', 'ĐỒNG BẰNG SÔNG CỬU LONG'],
-  hcm: ['HỒ CHÍ MINH', 'NAM BỘ', 'ĐÔNG NAM BỘ'],
-  nhatrang: ['NHA TRANG', 'KHÁNH HÒA', 'NAM TRUNG BỘ', 'PHÚ YÊN', 'NINH THUẬN'],
-  daklak: ['ĐẮK LẮK', 'BUÔN MA THUỘT', 'TÂY NGUYÊN'],
-  songcau: ['SÔNG CẦU', 'PHÚ YÊN', 'NAM TRUNG BỘ'],
+  danang: ['ĐÀ NẴNG', 'QUẢNG TRỊ', 'QUẢNG NGÃI', 'HUẾ', 'THỪA THIÊN HUẾ', 'TRUNG BỘ', 'TRUNG TRUNG BỘ', 'HÀ TĨNH', 'QUẢNG BÌNH'],
+  dalat: ['ĐÀ LẠT', 'LÂM ĐỒNG', 'TÂY NGUYÊN', 'CAO NGUYÊN TRUNG BỘ', 'GIA LAI', 'ĐẮK LẮK'],
+  cantho: ['CẦN THƠ', 'HẬU GIANG', 'TÂY NAM BỘ', 'ĐỒNG BẰNG SÔNG CỬU LONG', 'NAM BỘ', 'TRIỀU CƯỜNG'],
+  hcm: ['HỒ CHÍ MINH', 'NAM BỘ', 'ĐÔNG NAM BỘ', 'ĐỒNG NAI', 'TRIỀU CƯỜNG'],
+  nhatrang: ['NHA TRANG', 'KHÁNH HÒA', 'NAM TRUNG BỘ', 'PHÚ YÊN', 'NINH THUẬN', 'BÌNH THUẬN'],
+  daklak: ['ĐẮK LẮK', 'BUÔN MA THUỘT', 'TÂY NGUYÊN', 'GIA LAI', 'LÂM ĐỒNG'],
+  songcau: ['SÔNG CẦU', 'PHÚ YÊN', 'NAM TRUNG BỘ', 'QUẢNG NGÃI', 'BÌNH ĐỊNH'],
 };
 
-/** Mọi cảnh báo còn hiệu lực trong ngày trên toàn quốc, kèm chuyên mục. */
+/** Mọi cảnh báo và bản tin còn hiệu lực trên toàn quốc (từ trang chủ và các chuyên mục NCHMF). */
 function nchmfFreshWarnings() {
+  const seen = new Set();
   const out = [];
-  for (const c of NCHMF.categories || []) {
-    for (const w of c.warnings || []) {
-      if (isEffective(w.iso)) out.push({ ...w, category: c.label, url: c.url });
+
+  // 1. Bản tin khẩn cấp từ trang chủ NCHMF
+  for (const b of NCHMF.breaking || []) {
+    const key = (b.title || '') + (b.url || '');
+    if (!seen.has(key) && isEffective(b.iso, 3)) {
+      seen.add(key);
+      out.push({
+        ...b,
+        category: b.category || 'Tin khẩn cấp NCHMF',
+        url: b.url || 'https://www.nchmf.gov.vn/'
+      });
     }
   }
-  return out.sort((a, b) => (a.level === b.level ? 0 : a.level === 'red' ? -1 : 1));
+
+  // 2. Bản tin từ các chuyên mục NCHMF
+  for (const c of NCHMF.categories || []) {
+    for (const w of c.warnings || []) {
+      const key = (w.title || '') + (w.url || c.url);
+      if (!seen.has(key) && isEffective(w.iso, 3)) {
+        seen.add(key);
+        out.push({
+          ...w,
+          category: c.label,
+          url: w.url || c.url
+        });
+      }
+    }
+  }
+
+  return out.sort((a, b) => {
+    if (a.level === 'red' && b.level !== 'red') return -1;
+    if (b.level === 'red' && a.level !== 'red') return 1;
+    if (a.level === 'orange' && b.level === 'info') return -1;
+    if (b.level === 'orange' && a.level === 'info') return 1;
+    return (b.iso || '').localeCompare(a.iso || '');
+  });
 }
 
 /** Cảnh báo còn tươi mà tiêu đề nêu đích danh vùng của địa điểm đang xem. */
@@ -1912,59 +1943,160 @@ function nchmfWarningsFor(placeId) {
   });
 }
 
-const LEVEL_VN = { red: 'ĐỎ', orange: 'CAM', info: 'TIN', stale: 'CŨ' };
+const LEVEL_VN = { red: 'KHẨN CẤP', orange: 'CẢNH BÁO', info: 'DỰ BÁO', stale: 'LƯU TRỮ' };
 
 /** Hôm nay theo giờ Việt Nam — mốc để xác định tin còn hiệu lực. */
 function vnToday() {
   return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 }
-/** Tin còn hiệu lực trong ngày: phát hành hôm nay hoặc hôm qua. */
-function isEffective(iso) {
-  if (!iso) return false;
+/** Tin còn hiệu lực: phát hành trong vòng maxDays ngày. */
+function isEffective(iso, maxDays = 3) {
+  if (!iso) return true;
   const days = (Date.parse(vnToday()) - Date.parse(iso)) / 86400000;
-  return days >= 0 && days <= 1;
+  return days >= -1 && days <= maxDays;
 }
 
 /**
- * Panel chỉ giữ tin còn hiệu lực trong ngày: cảnh báo khớp vùng đang xem lên
- * trước, cảnh báo tươi nơi khác tiếp theo, chuyên mục hết hiệu lực gom gọn
- * thành một dòng link để khỏi chiếm chỗ mà vẫn tra cứu được.
+ * Hiển thị toàn bộ bản tin chính thức NCHMF:
+ * - Cảnh báo khẩn cấp khớp với vùng đang xem (lũ quét, sạt lở, bão, mưa lớn)
+ * - Cảnh báo khẩn cấp trên cả nước
+ * - Dự báo thời tiết đất liền 24h & 10 ngày
+ * - Dự báo thời tiết biển & triều cường
  */
 function renderNchmf() {
   const cats = NCHMF.categories || [];
-  if (!NCHMF.collectedAt) {
-    $('nchmfMeta').textContent = 'chưa có dữ liệu thu thập';
-    $('nchmfList').innerHTML = '<p class="muted">Chạy <code>node collect-nchmf.mjs</code> trước khi build để có bản tin mới nhất.</p>';
+  const breaking = NCHMF.breaking || [];
+  if (!NCHMF.collectedAt && !breaking.length && !cats.length) {
+    $('nchmfMeta').textContent = 'chưa có dữ liệu';
+    $('nchmfList').innerHTML = '<p class="muted">Chưa có dữ liệu bản tin NCHMF. Bấm nút <strong>Làm mới tin</strong> để tải về.</p>';
     return;
   }
-  const eff = [];
-  for (const c of cats) {
-    for (const w of c.warnings || []) {
-      if (isEffective(w.iso)) eff.push({ ...w, category: c.label, url: c.url });
-    }
-  }
-  const matched = eff.filter(w => {
+
+  const allWarnings = nchmfFreshWarnings();
+  const matched = allWarnings.filter(w => {
     const keys = NCHMF_REGIONS[place.id] || [];
     const T = (w.title || '').toUpperCase();
     return keys.some(k => T.includes(k));
   });
-  const others = eff.filter(w => !matched.includes(w));
-  const stale = cats.filter(c =>
-    !(c.warnings || []).some(w => isEffective(w.iso)) && !(c.docIso && isEffective(c.docIso)));
-  const fmtW = w => `<div><span class="warn-chip ${w.level}">${LEVEL_VN[w.level] || ''}</span><strong>${esc(w.title)}</strong> <span class="tiny">${w.iso}${w.time ? ' ' + w.time : ''} · ${esc(w.category)}</span> <span class="meta"><a href="${w.url}" target="_blank" rel="noopener">bản tin gốc</a></span></div>`;
-  $('nchmfMeta').textContent = 'thu thập ' +
-    new Date(NCHMF.collectedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
-    ` · ${eff.length} tin còn hiệu lực hôm nay`;
+  const others = allWarnings.filter(w => !matched.includes(w));
+
+  const fmtCard = w => `
+    <div class="nchmf-card ${w.level || 'info'}">
+      <div class="nchmf-card-title">
+        <span class="warn-chip ${w.level || 'info'}">${LEVEL_VN[w.level] || 'TIN'}</span>
+        <a href="${w.url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(w.title)}</a>
+      </div>
+      <div class="nchmf-card-meta">
+        <span>🕒 ${w.iso || ''}${w.time ? ' ' + w.time : ''}</span>
+        <span>📁 ${esc(w.category || 'NCHMF')}</span>
+        <a class="nchmf-card-link" href="${w.url}" target="_blank" rel="noopener">Đọc bản tin gốc NCHMF ↗</a>
+      </div>
+    </div>`;
+
+  const collectTimeStr = NCHMF.collectedAt
+    ? new Date(NCHMF.collectedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })
+    : 'hôm nay';
+  $('nchmfMeta').textContent = `Thu thập: ${collectTimeStr} · ${allWarnings.length} tin/cảnh báo mới nhất`;
+
   let html = '';
-  if (matched.length) html += `<h4>Cảnh báo cho vùng ${esc(place.name)}</h4>` + matched.map(fmtW).join('');
-  if (others.length) html += `<h4>Cảnh báo nơi khác còn hiệu lực</h4>` + others.slice(0, 6).map(fmtW).join('');
-  if (!eff.length) html += '<p class="muted">Hôm nay NCHMF không có cảnh báo nào còn hiệu lực. Bản tin định kỳ mới nhất vẫn xem được ở từng chuyên mục gốc.</p>';
-  if (stale.length) {
-    html += `<details><summary>${stale.length} chuyên mục đã hết hiệu lực trong ngày (bấm để xem bản tin gốc)</summary>` +
-      stale.map(c => `<div class="nchmf-item"><h4><span class="warn-chip stale">CŨ</span>${esc(c.title)}</h4>` +
-        `<div class="meta"><a href="${c.url}" target="_blank" rel="noopener">đọc bản tin gốc NCHMF</a></div></div>`).join('') + '</details>';
+
+  // 1. Cảnh báo cho địa phương đang xem
+  if (matched.length) {
+    html += `<div class="nchmf-section-title">🚨 Cảnh báo chính thức cho khu vực ${esc(place.name)} (${matched.length})</div>`;
+    html += matched.map(fmtCard).join('');
   }
+
+  // 2. Cảnh báo khẩn cấp các vùng khác trên toàn quốc
+  if (others.length) {
+    html += `<div class="nchmf-section-title">⚠️ Cảnh báo khẩn cấp trên toàn quốc (${others.length})</div>`;
+    html += others.map(fmtCard).join('');
+  }
+
+  if (!allWarnings.length) {
+    html += '<p class="muted" style="padding:10px 0">Hiện NCHMF không phát cảnh báo thời tiết nguy hiểm đặc biệt. Dưới đây là bản tin dự báo định kỳ mới nhất.</p>';
+  }
+
+  // 3. Bản tin dự báo chuyên đề (Đất liền 24h, Biển 24h, 10 ngày tới)
+  const datlien = cats.find(c => c.id === 'datlien');
+  const bien = cats.find(c => c.id === 'bien');
+  const muoingay = cats.find(c => c.id === 'muoi-ngay');
+
+  if (datlien || bien || muoingay) {
+    html += `<div class="nchmf-section-title" style="margin-top:22px">📋 Bản tin dự báo thời tiết định kỳ NCHMF</div>`;
+
+    if (datlien && datlien.excerpt) {
+      html += `
+        <div class="nchmf-routine-box">
+          <h4>🌤️ ${esc(datlien.title || 'Dự báo thời tiết đất liền 24h')}</h4>
+          <p>${esc(datlien.excerpt)}</p>
+          <div class="meta"><a class="nchmf-card-link" href="${datlien.url}" target="_blank" rel="noopener">Xem chi tiết toàn bộ các vùng trên NCHMF ↗</a></div>
+        </div>`;
+    }
+
+    if (bien && bien.excerpt) {
+      html += `
+        <div class="nchmf-routine-box">
+          <h4>🌊 ${esc(bien.title || 'Dự báo thời tiết biển 24h')}</h4>
+          <p>${esc(bien.excerpt)}</p>
+          <div class="meta"><a class="nchmf-card-link" href="${bien.url}" target="_blank" rel="noopener">Xem chi tiết thời tiết biển trên NCHMF ↗</a></div>
+        </div>`;
+    }
+
+    if (muoingay && (muoingay.excerpt || muoingay.title)) {
+      html += `
+        <div class="nchmf-routine-box">
+          <h4>📅 ${esc(muoingay.title || 'Xu thế thời tiết 10 ngày tới')}</h4>
+          <p>${esc(muoingay.excerpt || 'Theo dõi diễn biến không khí lạnh, mưa dông và nhiệt độ 10 ngày tới trên toàn quốc.')}</p>
+          <div class="meta"><a class="nchmf-card-link" href="${muoingay.url}" target="_blank" rel="noopener">Xem toàn văn bản tin 10 ngày NCHMF ↗</a></div>
+        </div>`;
+    }
+  }
+
+  // 4. Các chuyên mục chuyên sâu khác
+  const otherCats = cats.filter(c => c.id !== 'datlien' && c.id !== 'bien' && c.id !== 'muoi-ngay');
+  if (otherCats.length) {
+    html += `
+      <details style="margin-top:16px;border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:#fbfcfd">
+        <summary style="font-weight:600;cursor:pointer">Tra cứu trực tiếp ${otherCats.length} chuyên mục cảnh báo khác của NCHMF</summary>
+        <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:8px">
+          ${otherCats.map(c => `
+            <a href="${c.url}" target="_blank" rel="noopener" style="padding:8px 12px;background:#fff;border:1px solid var(--line);border-radius:6px;text-decoration:none;color:var(--ink);font-size:13px;display:block">
+              <strong>${esc(c.label)}</strong><br>
+              <span class="tiny" style="color:var(--muted)">${esc(c.title || 'Đọc tin')} ↗</span>
+            </a>
+          `).join('')}
+        </div>
+      </details>`;
+  }
+
   $('nchmfList').innerHTML = html;
+}
+
+/** Tải dữ liệu NCHMF mới nhất từ máy chủ tĩnh hoặc làm mới tại chỗ. */
+async function fetchLatestNchmf() {
+  const btn = $('btnReloadNchmf');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Đang tải…';
+  }
+  try {
+    const res = await fetch('nchmf.json?t=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.breaking || data.categories)) {
+        NCHMF = data;
+        renderNchmf();
+        nchmfBannerFor(place.id);
+      }
+    }
+  } catch (err) {
+    console.warn('Lỗi khi tải nchmf.json:', err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Làm mới tin';
+    }
+  }
 }
 
 /** Banner cảnh báo toàn quốc + dung hợp vào thông điệp rủi ro của địa điểm. */
@@ -2732,6 +2864,9 @@ renderNchmf();
 renderProtocol();
 renderTest();
 loadForecast();
+
+// Tự động kiểm tra bản tin NCHMF mới nhất từ máy chủ
+setTimeout(fetchLatestNchmf, 1200);
 
 // Automatically request device location on startup if supported
 if (navigator.geolocation && window.isSecureContext) {

@@ -9,9 +9,9 @@
 <p class="small" id="geoNote" role="status">Nút "Vị trí của tôi" dùng GPS thiết bị, cần quyền vị trí và trang mở bằng https://. Không dùng thì vị trí đang chọn giữ nguyên.</p>
 <div id="searchResults" aria-live="polite"></div><div class="quick" id="quick"></div><div id="liveStatus" class="notice" role="status">Đang lấy dữ liệu dự báo…</div>
 <div id="officialBanner"></div>
-<article class="panel official-panel"><div class="section-head"><div><p class="eyebrow">CƠ QUAN KHÍ TƯỢNG VIỆT NAM · NGUYÊN VĂN</p><h2>Bản tin chính thức (NCHMF)</h2></div><span class="small" id="nchmfMeta">—</span></div>
-<p class="small">Thu thập tự động phía server do NCHMF không có API mở. Mức cảnh báo do ứng dụng suy ra từ từ khóa + độ tươi bản tin — luôn đọc bản tin gốc trước khi ra quyết định.</p>
-<div id="nchmfList"><p class="muted">Chờ dữ liệu bản tin.</p></div></article>
+<article class="panel official-panel"><div class="section-head"><div><p class="eyebrow">CƠ QUAN KHÍ TƯỢNG VIỆT NAM · NGUYÊN VĂN</p><h2>Bản tin chính thức (NCHMF)</h2></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="small" id="nchmfMeta">—</span><button id="btnReloadNchmf" type="button" class="btn-ghost" style="padding:4px 10px;font-size:12px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:#fff;color:var(--ink)" onclick="fetchLatestNchmf()">Làm mới tin</button></div></div>
+<p class="small">Bản tin cảnh báo thiên tai, lũ lụt, mưa lớn và dự báo thời tiết cập nhật liên tục từ website chính thống của Trung tâm Dự báo Khí tượng Thủy văn Quốc gia (NCHMF). Bấm vào tiêu đề để mở bài viết gốc.</p>
+<div id="nchmfList"><p class="muted">Chờ dữ liệu bản tin…</p></div></article>
 
 
 <div class="weather-grid">

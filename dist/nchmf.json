@@ -1,1 +1,383 @@
-{"collectedAt":"2026-10-07T01:22:08.068Z","source":"Trung tâm Dự báo KTTV Quốc gia (NCHMF) — thu thập tự động phía server, hiển thị nguyên văn tiêu đề và trích đoạn. NCHMF không có API mở/JSON nên không thể lấy số liệu định lượng để trộn vào mô hình số.","note":"Mức cảnh báo do ứng dụng suy ra từ từ khóa tiêu đề + độ tươi của bản tin; luôn đọc bản tin gốc trước khi ra quyết định.","categories":[{"id":"datlien","label":"Thời tiết đất liền 24h","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html","title":"Dự báo thời tiết - Ngày và đêm 07/10/2026","docIso":"2026-10-07","fresh":true,"level":"info","excerpt":"Dự báo thời tiết - Ngày và đêm 07/10/2026 TP. Hà Nội Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sáng sớm và đêm trời lạnh, vùng núi có nơi trời rét. Nhiệt độ thấp nhất từ : 20-22 độ. Nhiệt độ cao nhất từ : 29-31 độ. Tây Bắc Bộ Ít mây, ngày nắng, đêm không mưa. Gió nhẹ. Sáng sớm và đêm trời lạnh, có nơi trời rét. Nhiệt độ thấp nhất từ : 18-21 độ, có nơi dưới 17 độ. Nhiệt độ cao nhất từ : 28-31 độ. Đông Bắc Bộ Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sán","warnings":[],"freshWarnings":0},{"id":"bien","label":"Thời tiết biển 24h","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-bien-24h-s12h3-15.html","title":"Dự báo thời tiết biển - Ngày và đêm 07/10/2026","docIso":"2026-10-07","fresh":true,"level":"info","excerpt":"Dự báo thời tiết biển - Ngày và đêm 07/10/2026 Bắc Vịnh Bắc bộ Có mưa rào và dông vài nơi. Tầm nhìn xa : Trên 10km. Gió đông bắc cấp 4-5 Sóng cao 1,0 - 2,0m. Nam Vịnh Bắc Bộ Có mưa rào và dông vài nơi. Tầm nhìn xa : Trên 10km. Gió đông bắc cấp 4-5 Sóng cao 1,5 - 2,5m. Nam Quảng Trị đến Quảng Ngãi Có mưa rào và dông rải rác. Trong mưa dông có khả năng xảy ra lốc xoáy và gió giật mạnh. Tầm nhìn xa : Trên 10km, giảm xuống 4-10 km trong mưa. Gió đông bắc đến bắc cấp 5, có lúc cấp 6, giật cấp 7-8. Bi","warnings":[],"freshWarnings":0},{"id":"muoi-ngay","label":"Thời tiết 10 ngày tới","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-10-ngay-toi-4-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"stale","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 06/10 đến ngày 16/10) ( 06/10/2026 02:30 ) BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 28/9 đến ngày 08/10) ( 28/09/2026 02:58 ) Thời tiết - Ngày và đêm 07/10/2026 TP. Hà Nội Nhiệt độ thấp nhất : 20-22 độ. Nhiệt độ cao nhất : 29-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sáng sớm và ","warnings":[],"freshWarnings":0},{"id":"bao","label":"Bão / áp thấp nhiệt đới","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/bao-ap-thap-nhiet-doi-2049-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"stale","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> Đang cập nhật dữ liệu Thời tiết - Ngày và đêm 07/10/2026 TP. Hà Nội Nhiệt độ thấp nhất : 20-22 độ. Nhiệt độ cao nhất : 29-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sáng sớm và đêm trời lạnh, vùng núi có nơi trời rét. Tây Bắc Bộ Nhiệt độ thấp nhất : 18-21 độ, có nơi dưới 17 độ. Nhiệt độ cao nhất : 28-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió nhẹ. Sáng sớm và đêm trời lạnh, có nơi trời rét. Đông Bắc Bộ Nhiệt độ thấp nhất :","warnings":[],"freshWarnings":0},{"id":"mualon","label":"Mưa lớn diện rộng","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/mua-lon-mua-lon-dien-rong-2053-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"red","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> TIN DỰ BÁO MƯA LỚN Ở KHU VỰC TỪ PHÍA NAM TỈNH QUẢNG TRỊ ĐẾN TP. ĐÀ NẴNG VÀ PHÍA ĐÔNG TỈNH QUẢNG NGÃI ( 07/10/2026 03:30 ) TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ ( 27/09/2026 03:30 ) TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ, CAO NGUYÊN TRUNG BỘ VÀ MIỀN ĐÔNG NAM BỘ ( 05/09/2026 09:00 ) TIN MƯA DÔNG, CẢNH BÁO MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ ","warnings":[{"title":"TIN DỰ BÁO MƯA LỚN Ở KHU VỰC TỪ PHÍA NAM TỈNH QUẢNG TRỊ ĐẾN TP. ĐÀ NẴNG VÀ PHÍA ĐÔNG TỈNH QUẢNG NGÃI ( 07/10/2026 03:30 )","iso":"2026-10-07","time":"03:30","fresh":true,"level":"red"},{"title":"TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ ( 27/09/2026 03:30 )","iso":"2026-09-27","time":"03:30","fresh":false,"level":"red"},{"title":"TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ, CAO NGUYÊN TRUNG BỘ VÀ MIỀN ĐÔNG NAM BỘ ( 05/09/2026 09:00 )","iso":"2026-09-05","time":"09:00","fresh":false,"level":"red"},{"title":"TIN MƯA DÔNG, CẢNH BÁO MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC ĐÔNG BẮC BỘ, TỪ THANH HÓA ĐẾN HÀ TĨNH ( 14/10/2025 09:00 )","iso":"2025-10-14","time":"09:00","fresh":false,"level":"red"}],"freshWarnings":1},{"id":"nguyhiem","label":"Thời tiết nguy hiểm","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-nguy-hiem-5-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"orange","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN ( 07/10/2026 04:00 ) TIN DỰ BÁO MƯA LỚN Ở KHU VỰC TỪ PHÍA NAM TỈNH QUẢNG TRỊ ĐẾN TP. ĐÀ NẴNG VÀ PHÍA ĐÔNG TỈNH QUẢNG NGÃI ( 07/10/2026 03:30 ) TIN CẢNH BÁO DÔNG, LỐC, SÉT, MƯA ĐÁ TRÊN KHU VỰC HÀ NỘI ( 04/10/2026 09:15 ) TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ ( 27/09/2026 03:30 ) TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ","warnings":[{"title":"TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN ( 07/10/2026 04:00 )","iso":"2026-10-07","time":"04:00","fresh":true,"level":"orange"},{"title":"TIN DỰ BÁO MƯA LỚN Ở KHU VỰC TỪ PHÍA NAM TỈNH QUẢNG TRỊ ĐẾN TP. ĐÀ NẴNG VÀ PHÍA ĐÔNG TỈNH QUẢNG NGÃI ( 07/10/2026 03:30 )","iso":"2026-10-07","time":"03:30","fresh":true,"level":"orange"},{"title":"TIN CẢNH BÁO DÔNG, LỐC, SÉT, MƯA ĐÁ TRÊN KHU VỰC HÀ NỘI ( 04/10/2026 09:15 )","iso":"2026-10-04","time":"09:15","fresh":true,"level":"orange"},{"title":"TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ ( 27/09/2026 03:30 )","iso":"2026-09-27","time":"03:30","fresh":false,"level":"orange"},{"title":"TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ, CAO NGUYÊN TRUNG BỘ VÀ MIỀN ĐÔNG NAM BỘ ( 05/09/2026 09:00 )","iso":"2026-09-05","time":"09:00","fresh":false,"level":"orange"},{"title":"TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ ( 01/09/2026 08:00 )","iso":"2026-09-01","time":"08:00","fresh":false,"level":"orange"}],"freshWarnings":3},{"id":"kkhlanh","label":"Không khí lạnh","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/khong-khi-lanh-2050-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"stale","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> Đang cập nhật dữ liệu Thời tiết - Ngày và đêm 07/10/2026 TP. Hà Nội Nhiệt độ thấp nhất : 20-22 độ. Nhiệt độ cao nhất : 29-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sáng sớm và đêm trời lạnh, vùng núi có nơi trời rét. Tây Bắc Bộ Nhiệt độ thấp nhất : 18-21 độ, có nơi dưới 17 độ. Nhiệt độ cao nhất : 28-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió nhẹ. Sáng sớm và đêm trời lạnh, có nơi trời rét. Đông Bắc Bộ Nhiệt độ thấp nhất :","warnings":[],"freshWarnings":0},{"id":"nangnong","label":"Nắng nóng","url":"https://nchmf.gov.vn/kttvsite/vi-VN/1/nang-nong-2051-15.html","title":"Dự báo thời tiết ngày và đêm 28/12/2018","docIso":"2018-12-28","fresh":false,"level":"stale","excerpt":"Dự báo thời tiết ngày và đêm 28/12/2018 --> TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ ( 01/09/2026 08:00 ) TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ THANH HÓA ( 15/07/2026 08:00 ) Thời tiết - Ngày và đêm 07/10/2026 TP. Hà Nội Nhiệt độ thấp nhất : 20-22 độ. Nhiệt độ cao nhất : 29-31 độ. Ít mây, ngày nắng, đêm không mưa. Gió đông bắc đến bắc cấp 2-3. Sáng sớm và đêm trời lạnh, vùng núi có nơi trời rét. Tây Bắc Bộ Nhiệt độ thấp nhất : 18-21 độ, có nơi dưới 17 độ. Nhiệt độ cao nhất : 28-31 độ","warnings":[{"title":"TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ ( 01/09/2026 08:00 )","iso":"2026-09-01","time":"08:00","fresh":false,"level":"orange"},{"title":"TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ THANH HÓA ( 15/07/2026 08:00 )","iso":"2026-07-15","time":"08:00","fresh":false,"level":"orange"}],"freshWarnings":0}],"errors":[]}
+{
+  "collectedAt": "2026-10-11T04:54:30.549Z",
+  "source": "Trung tâm Dự báo Khí tượng Thủy văn Quốc gia (NCHMF) — https://nchmf.gov.vn",
+  "note": "Bản tin cập nhật tự động từ trang chủ và các chuyên mục chính thức NCHMF. Bấm vào từng tiêu đề để đọc toàn văn trên website chính thống.",
+  "breaking": [
+    {
+      "title": "TIN CẢNH BÁO LŨ QUÉT SẠT LỞ ĐẤT, SỤT LÚN ĐẤT DO MƯA LŨ HOẶC DÒNG CHẢY TRÊN KHU VỰC CÁC TỈNH/THÀNH PHỐ TỪ HÀ TĨNH ĐẾN GIA LAI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-cac-tinh-thanh-pho-tu-ha-tinh-den-gia-lai-post54559.html",
+      "iso": "2026-10-11",
+      "time": "11:27:27",
+      "level": "red",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO LŨ TRÊN SÔNG ĐỒNG NAI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-tren-song-dong-nai-post54554.html",
+      "iso": "2026-10-11",
+      "time": "08:40:55",
+      "level": "red",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO LŨ QUÉT SẠT LỞ ĐẤT, SỤT LÚN ĐẤT DO MƯA LŨ HOẶC DÒNG CHẢY TRÊN KHU VỰC CÁC TỈNH/THÀNH PHỐ TỪ HÀ TĨNH ĐẾN QUẢNG NGÃI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-cac-tinh-thanh-pho-tu-ha-tinh-den-quang-ngai-post54552.html",
+      "iso": "2026-10-11",
+      "time": "06:20:00",
+      "level": "red",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO LŨ QUÉT SẠT LỞ ĐẤT, SỤT LÚN ĐẤT DO MƯA LŨ HOẶC DÒNG CHẢY TRÊN KHU VỰC CÁC TỈNH/THÀNH PHỐ TỪ NGHỆ AN ĐẾN GIA LAI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-cac-tinh-thanh-pho-tu-nghe-an-den-gia-lai-post54550.html",
+      "iso": "2026-10-10",
+      "time": "20:30:00",
+      "level": "red",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO LŨ QUÉT SẠT LỞ ĐẤT, SỤT LÚN ĐẤT DO MƯA LŨ HOẶC DÒNG CHẢY TRÊN KHU VỰC CÁC TỈNH/THÀNH PHỐ TỪ NGHỆ AN ĐẾN QUẢNG NGÃI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-quet-sat-lo-dat-sut-lun-dat-do-mua-lu-hoac-dong-chay-tren-khu-vuc-cac-tinh-thanh-pho-tu-nghe-an-den-quang-ngai-post54549.html",
+      "iso": "2026-10-10",
+      "time": "16:27:01",
+      "level": "red",
+      "fresh": true
+    },
+    {
+      "title": "TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-du-bao-gio-manh-song-lon-va-mua-dong-tren-bien-post54353.html",
+      "iso": "2026-10-11",
+      "time": "10:00:00",
+      "level": "orange",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TỪ THÀNH PHỐ HUẾ ĐẾN THÀNH PHỐ ĐÀ NẴNG, PHÍA ĐÔNG CÁC TỈNH TỪ QUẢNG NGÃI ĐẾN ĐẮK LẮK, KHU VỰC NAM BỘ VÀ TỈNH LÂM ĐỒNG",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-tu-thanh-pho-hue-den-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post54290.html",
+      "iso": "2026-10-11",
+      "time": "09:00:00",
+      "level": "orange",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO, DỰ BÁO TRIỀU CƯỜNG VÙNG VEN BIỂN NAM BỘ",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-du-bao-trieu-cuong-vung-ven-bien-nam-bo-post54492.html",
+      "iso": "2026-10-10",
+      "time": null,
+      "level": "orange",
+      "fresh": true
+    },
+    {
+      "title": "TIN CẢNH BÁO LŨ PHỤC VỤ QUY TRÌNH VẬN HÀNH LIÊN HỒ CHỨA LƯU VỰC SÔNG ĐỒNG NAI",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/tin-canh-bao-lu-phuc-vu-quy-trinh-van-hanh-lien-ho-chua-luu-vuc-song-dong-nai-post54553.html",
+      "iso": "2026-10-11",
+      "time": "09:00:00",
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "BẢN TIN DỰ BÁO, CẢNH BÁO THỦY VĂN THỜI HẠN VỪA",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-canh-bao-thuy-van-thoi-han-vua-post54558.html",
+      "iso": "2026-10-11",
+      "time": null,
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "BẢN TIN NHẬN ĐỊNH XU THẾ DIỄN BIẾN THỜI TIẾT, THỦY VĂN PHỤC VỤ QUY TRÌNH VẬN HÀNH LIÊN HỒ CHỨA LƯU VỰC SÔNG MÃ, SÔNG CHU",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-nhan-dinh-xu-the-dien-bien-thoi-tiet-thuy-van-phuc-vu-quy-trinh-van-hanh-lien-ho-chua-luu-vuc-song-ma-song-chu-post54557.html",
+      "iso": "2026-10-11",
+      "time": null,
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "BẢN TIN DỰ BÁO, CẢNH BÁO THỦY VĂN THỜI HẠN NGẮN",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-canh-bao-thuy-van-thoi-han-ngan-post54556.html",
+      "iso": "2026-10-11",
+      "time": null,
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "Bản tin dự báo sóng 10 ngày tới (từ ngày 11/10 đến ngày 20/10/2026)",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-song-10-ngay-toi-tu-ngay-11-10-den-ngay-20-10-2026-post54280.html",
+      "iso": "2026-10-20",
+      "time": null,
+      "level": "info",
+      "fresh": false
+    },
+    {
+      "title": "Bản tin dự báo thủy triều 10 ngày tới (từ ngày 11/10 đến ngày 20/10/2026)",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-thuy-trieu-10-ngay-toi-tu-ngay-11-10-den-ngay-20-10-2026-post54291.html",
+      "iso": "2026-10-20",
+      "time": null,
+      "level": "info",
+      "fresh": false
+    },
+    {
+      "title": "Bản tin dự báo dòng chảy 10 ngày tới (từ ngày 11/10 đến ngày 20/10/2026)",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-dong-chay-10-ngay-toi-tu-ngay-11-10-den-ngay-20-10-2026-post54282.html",
+      "iso": "2026-10-20",
+      "time": null,
+      "level": "info",
+      "fresh": false
+    },
+    {
+      "title": "Dự báo trường nước dâng lớn nhất 3 ngày tới",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/du-bao-truong-nuoc-dang-lon-nhat-3-ngay-toi-post54271.html",
+      "iso": "2026-10-11",
+      "time": null,
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "Bản tin dự báo thủy văn hàng ngày phục vụ quy trình LHC sông Đồng Nai trong mùa lũ",
+      "url": "https://www.nchmf.gov.vn/kttv/vi-VN/1/ban-tin-du-bao-thuy-van-hang-ngay-phuc-vu-quy-trinh-lhc-song-dong-nai-trong-mua-lu-post54548.html",
+      "iso": "2026-10-10",
+      "time": null,
+      "level": "info",
+      "fresh": true
+    },
+    {
+      "title": "BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 10/10 đến ngày 20/10)",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-du-bao-canh-bao-xu-the-thoi-tiet-tren-dat-lien-thoi-han-den-10-ngay-tu-dem-10-10-den-ngay-20-10-post55212.html",
+      "iso": "2026-10-10",
+      "time": "03:15",
+      "level": "info",
+      "fresh": true,
+      "category": "Thời tiết 10 ngày tới"
+    }
+  ],
+  "categories": [
+    {
+      "id": "datlien",
+      "label": "Thời tiết đất liền 24h",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html",
+      "title": "Dự báo thời tiết - Ngày và đêm 11/10/2026",
+      "docIso": "2026-10-11",
+      "fresh": true,
+      "level": "info",
+      "excerpt": "Dự báo thời tiết - Ngày và đêm 11/10/2026 TP. Hà Nội Có mây, ngày nắng; đêm có mưa vài nơi. Gió đông bắc đến bắc cấp 2-3. Nhiệt độ thấp nhất từ : 22-24 độ. Nhiệt độ cao nhất từ : 30-33 độ. Tây Bắc Bộ Có mây, ngày nắng; đêm có mưa vài nơi. Gió nhẹ. Nhiệt độ thấp nhất từ : 21-24 độ, có nơi dưới 20 độ. Nhiệt độ cao nhất từ : 29-32 độ. Đông Bắc Bộ Có mây, ngày nắng; đêm có mưa vài nơi. Gió đông bắc cấp 2-3. Nhiệt độ thấp nhất từ : 21-24 độ, vùng núi có nơi dưới 21 độ. Nhiệt độ cao nhất từ : 30-33 độ. Thanh Hóa đến Huế Nhiều mây, phía Bắc có mưa, mưa rào rải rác và có nơi có dông. Phía Nam có mưa, ",
+      "warnings": [],
+      "freshWarnings": 0
+    },
+    {
+      "id": "bien",
+      "label": "Thời tiết biển 24h",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-bien-24h-s12h3-15.html",
+      "title": "Dự báo thời tiết biển - Ngày và đêm 11/10/2026",
+      "docIso": "2026-10-11",
+      "fresh": true,
+      "level": "info",
+      "excerpt": "Dự báo thời tiết biển - Ngày và đêm 11/10/2026 Bắc Vịnh Bắc bộ Không mưa Tầm nhìn xa : Trên 10km. Gió đông bắc cấp 4. Sóng cao 1,5 - 2,5m, trong mưa dông có khả năng cao trên 2,5m Nam Vịnh Bắc Bộ Có mưa rào vài nơi Tầm nhìn xa : Trên 10km. Gió đông bắc cấp 4-5. Sóng cao 1,5 - 2,5m, trong mưa dông có khả năng cao trên 2,5m Nam Quảng Trị đến Quảng Ngãi Có mưa rào và dông rải rác. Trong mưa dông có khả năng xảy ra lốc xoáy và gió giật mạnh cấp 7-8. Tầm nhìn xa : Trên 10km, giảm xuống 4-10 km trong mưa. Gió đông bắc cấp 5. Sóng cao 2,0 - 3,0m, trong mưa dông có khả năng cao trên 3,0m Gia Lai đến K",
+      "warnings": [],
+      "freshWarnings": 0
+    },
+    {
+      "id": "muoi-ngay",
+      "label": "Thời tiết 10 ngày tới",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-10-ngay-toi-4-15.html",
+      "title": "BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 10/10 đến ngày 20/10)",
+      "docIso": "2026-10-10",
+      "fresh": true,
+      "level": "info",
+      "excerpt": "BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 10/10 đến ngày 20/10)",
+      "warnings": [
+        {
+          "title": "BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 10/10 đến ngày 20/10)",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-du-bao-canh-bao-xu-the-thoi-tiet-tren-dat-lien-thoi-han-den-10-ngay-tu-dem-10-10-den-ngay-20-10-post55212.html",
+          "iso": "2026-10-10",
+          "time": "03:15",
+          "level": "info",
+          "fresh": true
+        },
+        {
+          "title": "BẢN TIN DỰ BÁO, CẢNH BÁO XU THẾ THỜI TIẾT TRÊN ĐẤT LIỀN THỜI HẠN ĐẾN 10 NGÀY (Từ đêm 28/9 đến ngày 08/10)",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/ban-tin-du-bao-canh-bao-xu-the-thoi-tiet-tren-dat-lien-thoi-han-den-10-ngay-tu-dem-28-9-den-ngay-08-10-post54418.html",
+          "iso": "2026-09-28",
+          "time": "02:58",
+          "level": "info",
+          "fresh": false
+        }
+      ],
+      "freshWarnings": 1
+    },
+    {
+      "id": "bao",
+      "label": "Bão / áp thấp nhiệt đới",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/bao-ap-thap-nhiet-doi-2049-15.html",
+      "title": "Bão / áp thấp nhiệt đới",
+      "docIso": null,
+      "fresh": false,
+      "level": "stale",
+      "excerpt": "Đang cập nhật dữ liệu",
+      "warnings": [],
+      "freshWarnings": 0
+    },
+    {
+      "id": "mualon",
+      "label": "Mưa lớn diện rộng",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/mua-lon-mua-lon-dien-rong-2053-15.html",
+      "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TỪ THÀNH PHỐ HUẾ ĐẾN THÀNH PHỐ ĐÀ NẴNG, PHÍA ĐÔNG CÁC TỈNH TỪ QUẢNG NGÃI ĐẾN ĐẮK LẮK, KHU VỰC NAM BỘ VÀ TỈNH LÂM ĐỒNG",
+      "docIso": "2026-10-11",
+      "fresh": true,
+      "level": "red",
+      "excerpt": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TỪ THÀNH PHỐ HUẾ ĐẾN THÀNH PHỐ ĐÀ NẴNG, PHÍA ĐÔNG CÁC TỈNH TỪ QUẢNG NGÃI ĐẾN ĐẮK LẮK, KHU VỰC NAM BỘ VÀ TỈNH LÂM ĐỒNG",
+      "warnings": [
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TỪ THÀNH PHỐ HUẾ ĐẾN THÀNH PHỐ ĐÀ NẴNG, PHÍA ĐÔNG CÁC TỈNH TỪ QUẢNG NGÃI ĐẾN ĐẮK LẮK, KHU VỰC NAM BỘ VÀ TỈNH LÂM ĐỒNG",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-tu-thanh-pho-hue-den-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html",
+          "iso": "2026-10-11",
+          "time": "09:00",
+          "level": "red",
+          "fresh": true
+        },
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-trung-bo-va-nam-bo-post55147.html",
+          "iso": "2026-09-27",
+          "time": "03:30",
+          "level": "red",
+          "fresh": false
+        },
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ, CAO NGUYÊN TRUNG BỘ VÀ MIỀN ĐÔNG NAM BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-trung-bo-cao-nguyen-trung-bo-va-mien-dong-nam-bo-post54419.html",
+          "iso": "2026-09-05",
+          "time": "09:00",
+          "level": "red",
+          "fresh": false
+        },
+        {
+          "title": "TIN MƯA DÔNG, CẢNH BÁO MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC ĐÔNG BẮC BỘ, TỪ THANH HÓA ĐẾN HÀ TĨNH",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-mua-dong-canh-bao-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-dong-bac-bo-tu-thanh-hoa-den-ha-tinh-post51485.html",
+          "iso": "2025-10-14",
+          "time": "09:00",
+          "level": "red",
+          "fresh": false
+        }
+      ],
+      "freshWarnings": 1
+    },
+    {
+      "id": "nguyhiem",
+      "label": "Thời tiết nguy hiểm",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-nguy-hiem-5-15.html",
+      "title": "TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN",
+      "docIso": "2026-10-11",
+      "fresh": true,
+      "level": "orange",
+      "excerpt": "TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN",
+      "warnings": [
+        {
+          "title": "TIN DỰ BÁO GIÓ MẠNH, SÓNG LỚN VÀ MƯA DÔNG TRÊN BIỂN",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-gio-manh-song-lon-va-mua-dong-tren-bien-post55284.html",
+          "iso": "2026-10-11",
+          "time": "10:00",
+          "level": "orange",
+          "fresh": true
+        },
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TỪ THÀNH PHỐ HUẾ ĐẾN THÀNH PHỐ ĐÀ NẴNG, PHÍA ĐÔNG CÁC TỈNH TỪ QUẢNG NGÃI ĐẾN ĐẮK LẮK, KHU VỰC NAM BỘ VÀ TỈNH LÂM ĐỒNG",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-tu-thanh-pho-hue-den-thanh-pho-da-nang-phia-dong-cac-tinh-tu-quang-ngai-den-dak-lak-khu-vuc-nam-bo-va-tinh-lam-dong-post55221.html",
+          "iso": "2026-10-11",
+          "time": "09:00",
+          "level": "orange",
+          "fresh": true
+        },
+        {
+          "title": "TIN CẢNH BÁO DÔNG, LỐC, SÉT, MƯA ĐÁ TRÊN KHU VỰC HÀ NỘI",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-dong-loc-set-mua-da-tren-khu-vuc-ha-noi-post55319.html",
+          "iso": "2026-10-04",
+          "time": "09:15",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ VÀ NAM BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-trung-bo-va-nam-bo-post55147.html",
+          "iso": "2026-09-27",
+          "time": "03:30",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN CẢNH BÁO MƯA DÔNG, MƯA LỚN CỤC BỘ, LỐC, SÉT, MƯA ĐÁ, GIÓ GIẬT MẠNH Ở KHU VỰC TRUNG BỘ, CAO NGUYÊN TRUNG BỘ VÀ MIỀN ĐÔNG NAM BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-canh-bao-mua-dong-mua-lon-cuc-bo-loc-set-mua-da-gio-giat-manh-o-khu-vuc-trung-bo-cao-nguyen-trung-bo-va-mien-dong-nam-bo-post54419.html",
+          "iso": "2026-09-05",
+          "time": "09:00",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-nang-nong-o-khu-vuc-bac-bo-va-trung-bo-post54486.html",
+          "iso": "2026-09-01",
+          "time": "08:00",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ THANH HÓA",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-nang-nong-o-khu-vuc-bac-bo-va-thanh-hoa-post53523.html",
+          "iso": "2026-07-15",
+          "time": "08:00",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN DỰ BÁO MƯA DÔNG, LỐC XOÁY VÀ GIÓ GIẬT MẠNH TRÊN BIỂN",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-mua-dong-loc-xoay-va-gio-giat-manh-tren-bien-post51494.html",
+          "iso": "2025-10-14",
+          "time": "10:00",
+          "level": "orange",
+          "fresh": false
+        }
+      ],
+      "freshWarnings": 2
+    },
+    {
+      "id": "kkhlanh",
+      "label": "Không khí lạnh",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/khong-khi-lanh-2050-15.html",
+      "title": "Không khí lạnh",
+      "docIso": null,
+      "fresh": false,
+      "level": "stale",
+      "excerpt": "Đang cập nhật dữ liệu",
+      "warnings": [],
+      "freshWarnings": 0
+    },
+    {
+      "id": "nangnong",
+      "label": "Nắng nóng",
+      "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/nang-nong-2051-15.html",
+      "title": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ",
+      "docIso": "2026-09-01",
+      "fresh": false,
+      "level": "stale",
+      "excerpt": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ",
+      "warnings": [
+        {
+          "title": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ TRUNG BỘ",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-nang-nong-o-khu-vuc-bac-bo-va-trung-bo-post54486.html",
+          "iso": "2026-09-01",
+          "time": "08:00",
+          "level": "orange",
+          "fresh": false
+        },
+        {
+          "title": "TIN DỰ BÁO NẮNG NÓNG Ở KHU VỰC BẮC BỘ VÀ THANH HÓA",
+          "url": "https://nchmf.gov.vn/kttvsite/vi-VN/1/tin-du-bao-nang-nong-o-khu-vuc-bac-bo-va-thanh-hoa-post53523.html",
+          "iso": "2026-07-15",
+          "time": "08:00",
+          "level": "orange",
+          "fresh": false
+        }
+      ],
+      "freshWarnings": 0
+    }
+  ],
+  "errors": []
+}

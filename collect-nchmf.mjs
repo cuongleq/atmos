@@ -1,13 +1,45 @@
-// Thu thap ban tin chinh thuc NCHMF phia server (trinh duyet khong doc truc
-// tiep duoc do NCHMF khong mo CORS va khong co API JSON). Chay truoc build.mjs.
-// Khong bao gio lam hong build: loi mang chi ghi nhan trang thai, khong throw.
+// Thu thập bản tin chính thức NCHMF phía server từ trang chủ và các chuyên mục
+// (trình duyệt không đọc trực tiếp được do NCHMF không mở CORS và không có API JSON).
+// Chạy trước build.mjs. Không bao giờ làm hỏng build: lỗi mạng chỉ ghi nhận trạng thái.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const strip = h => (h || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#?\w+;/g, ' ').replace(/\s+/g, ' ').trim();
 
-// Cac chuyen muc co ban tin ngay. Trang danh muc render san ban tin moi nhat.
+const isoOf = (d, m, y) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+function parseDateFromText(text) {
+  const m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  const d = String(m[1]).padStart(2, '0');
+  const mo = String(m[2]).padStart(2, '0');
+  const y = m[3];
+  const iso = `${y}-${mo}-${d}`;
+  const time = m[4] ? `${m[4]}:${m[5]}${m[6] ? ':' + m[6] : ''}` : null;
+  return { iso, time, raw: m[0] };
+}
+
+function levelOf(title, kind) {
+  const T = (title || '').toUpperCase();
+  if (/BÃO|ÁP THẤP|LŨ QUÉT|SẠT LỞ|SỤT LÚN|LŨ TRÊN SÔNG/.test(T)) return 'red';
+  if (/MƯA LỚN|MƯA DÔNG|GIÓ MẠNH|SÓNG LỚN|LỐC|SÉT|MƯA ĐÁ|GIÓ GIẬT|TRIỀU CƯỜNG/.test(T)) {
+    return (kind === 'rain' || /ĐẶC BIỆT LỚN|KHẨN CẤP/.test(T)) ? 'red' : 'orange';
+  }
+  if (/KHÔNG KHÍ LẠNH|RÉT|NẮNG NÓNG/.test(T)) return 'orange';
+  return 'info';
+}
+
+const todayIso = new Date().toISOString().slice(0, 10);
+const isFresh = (iso, daysLimit = 3) => {
+  if (!iso) return false;
+  const days = (Date.parse(todayIso) - Date.parse(iso)) / 86400000;
+  return days >= -1 && days <= daysLimit;
+};
+
 const CATEGORIES = [
   { id: 'datlien', label: 'Thời tiết đất liền 24h', url: 'https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-dat-lien-24h-12h2-15.html', kind: 'routine' },
   { id: 'bien', label: 'Thời tiết biển 24h', url: 'https://nchmf.gov.vn/kttvsite/vi-VN/1/thoi-tiet-bien-24h-s12h3-15.html', kind: 'routine' },
@@ -19,88 +51,143 @@ const CATEGORIES = [
   { id: 'nangnong', label: 'Nắng nóng', url: 'https://nchmf.gov.vn/kttvsite/vi-VN/1/nang-nong-2051-15.html', kind: 'heat' },
 ];
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const strip = h => h.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
-  .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#?\w+;/g, ' ').replace(/\s+/g, ' ').trim();
+async function collectAll() {
+  const report = {
+    collectedAt: new Date().toISOString(),
+    source: 'Trung tâm Dự báo Khí tượng Thủy văn Quốc gia (NCHMF) — https://nchmf.gov.vn',
+    note: 'Bản tin cập nhật tự động từ trang chủ và các chuyên mục chính thức NCHMF. Bấm vào từng tiêu đề để đọc toàn văn trên website chính thống.',
+    breaking: [],
+    categories: [],
+    errors: [],
+  };
 
-const isoOf = (d, m, y) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-// Cac mau ngay trong ban tin: "07/10/2026", "( 07/10/2026 03:30 )", "Ngày và đêm 07/10/2026"
-function findDates(text) {
-  const out = [];
-  for (const m of text.matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/g)) {
-    out.push({ iso: isoOf(m[1], m[2], m[3]), time: m[4] ? `${m[4]}:${m[5]}` : null, raw: m[0] });
-  }
-  return out;
-}
-
-// Trich cac dong "TIN ... ( DD/MM/YYYY HH:MM )" — dinh dang canh bao cua NCHMF.
-function findWarnings(text) {
-  const out = [];
-  for (const m of text.matchAll(/TIN\s[^()]{8,160}?\(\s*(\d{1,2}\/\d{1,2}\/\d{4})(?:\s+(\d{1,2}:\d{2}))?\s*\)/gi)) {
-    const title = m[0].replace(/\s+/g, ' ').trim().slice(0, 220);
-    const [d, mo, y] = m[1].split('/');
-    out.push({ title, iso: isoOf(d, mo, y), time: m[2] || null });
-  }
-  return out;
-}
-
-function levelOf(text, kind) {
-  const T = text.toUpperCase();
-  if (/BÃO|ÁP THẤP/.test(T)) return 'red';
-  if (/LŨ QUÉT|LŨ |SẠT LỞ/.test(T)) return 'red';
-  if (/MƯA LỚN|MƯA DÔNG|LỐC|GIÓ GIẬT/.test(T)) return kind === 'rain' ? 'red' : 'orange';
-  if (/KHÔNG KHÍ LẠNH|RÉT|NẮNG NÓNG/.test(T)) return 'orange';
-  return 'info';
-}
-
-const todayIso = new Date().toISOString().slice(0, 10);
-const freshDays = 3;
-const isFresh = iso => {
-  const days = (Date.parse(todayIso) - Date.parse(iso)) / 86400000;
-  return days >= -1 && days <= freshDays;
-};
-
-const report = {
-  collectedAt: new Date().toISOString(),
-  source: 'Trung tâm Dự báo KTTV Quốc gia (NCHMF) — thu thập tự động phía server, hiển thị nguyên văn tiêu đề và trích đoạn. NCHMF không có API mở/JSON nên không thể lấy số liệu định lượng để trộn vào mô hình số.',
-  note: 'Mức cảnh báo do ứng dụng suy ra từ từ khóa tiêu đề + độ tươi của bản tin; luôn đọc bản tin gốc trước khi ra quyết định.',
-  categories: [],
-  errors: [],
-};
-
-for (const cat of CATEGORIES) {
+  // 1. Quét trang chủ NCHMF (nguồn cập nhật tin khẩn cấp nhanh nhất theo thời gian thực)
   try {
-    const r = await fetch(cat.url, { signal: AbortSignal.timeout(45000) });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const html = await r.text();
-    const h1m = html.match(/<h1[^>]*>([\s\S]{1,300}?)<\/h1>/i);
-    const h1 = (h1m?.[1] || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
-    const idx = h1m?.index ?? 0;
-    const body = strip(html.slice(Math.max(0, idx), idx + 15000)).slice(0, 1600);
-    const dates = findDates(h1 + ' ' + body.slice(0, 400));
-    const docIso = dates.length ? dates[0].iso : null;
-    const warnings = findWarnings(body).map(w => ({
-      ...w,
-      fresh: isFresh(w.iso),
-      level: levelOf(w.title, cat.kind),
-    }));
-    const freshWarn = warnings.filter(w => w.fresh);
-    report.categories.push({
-      id: cat.id, label: cat.label, url: cat.url,
-      title: h1 || cat.label, docIso, fresh: docIso ? isFresh(docIso) : false,
-      level: freshWarn.length ? freshWarn[0].level : (docIso && isFresh(docIso) ? (cat.kind === 'storm' || cat.kind === 'rain' ? 'orange' : 'info') : 'stale'),
-      excerpt: body.slice(0, 500),
-      warnings: warnings.slice(0, 6),
-      freshWarnings: freshWarn.length,
-    });
-    console.log(`${cat.id}: "${h1.slice(0, 60)}" date=${docIso} warnings=${warnings.length} fresh=${freshWarn.length}`);
+    const homeRes = await fetch('https://www.nchmf.gov.vn/', { signal: AbortSignal.timeout(35000) });
+    if (homeRes.ok) {
+      const html = await homeRes.text();
+      const re = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        const href = m[1];
+        const text = m[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        if (/^(TIN|BẢN TIN|DỰ BÁO)/i.test(text) && text.length > 20) {
+          const dt = parseDateFromText(text);
+          const cleanTitle = text.replace(/\(\s*\d{1,2}\/\d{1,2}\/\d{4}[\s\d:]*\)\s*$/, '').trim();
+          const fullUrl = href.startsWith('http') ? href : new URL(href, 'https://www.nchmf.gov.vn/').href;
+          if (!report.breaking.some(b => b.title === cleanTitle || b.url === fullUrl)) {
+            const iso = dt?.iso || null;
+            report.breaking.push({
+              title: cleanTitle,
+              url: fullUrl,
+              iso,
+              time: dt?.time || null,
+              level: levelOf(cleanTitle),
+              fresh: isFresh(iso, 2),
+            });
+          }
+        }
+      }
+    }
   } catch (e) {
-    report.errors.push(`${cat.id}: ${e.message}`);
-    console.log(`${cat.id} FAILED: ${e.message}`);
+    report.errors.push(`homepage: ${e.message}`);
   }
-  await sleep(1500);
+
+  // 2. Quét các chuyên mục NCHMF
+  for (const cat of CATEGORIES) {
+    try {
+      const r = await fetch(cat.url, { signal: AbortSignal.timeout(35000) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const html = await r.text();
+
+      const postLinks = [];
+      const linkRe = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let lm;
+      while ((lm = linkRe.exec(html)) !== null) {
+        const h = lm[1];
+        const t = lm[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        if (h.includes('-post') && t.length > 20) {
+          const dt = parseDateFromText(t);
+          const cleanT = t.replace(/\(\s*\d{1,2}\/\d{1,2}\/\d{4}[\s\d:]*\)\s*$/, '').trim();
+          const fUrl = h.startsWith('http') ? h : new URL(h, cat.url).href;
+          if (!postLinks.some(p => p.url === fUrl)) {
+            postLinks.push({
+              title: cleanT,
+              url: fUrl,
+              iso: dt?.iso || null,
+              time: dt?.time || null,
+              level: levelOf(cleanT, cat.kind),
+              fresh: isFresh(dt?.iso, 3),
+            });
+          }
+        }
+      }
+
+      let title = '';
+      let docIso = null;
+      let excerpt = '';
+
+      if (cat.id === 'datlien' || cat.id === 'bien') {
+        const h1m = html.match(/<h1[^>]*>([\s\S]{1,300}?)<\/h1>/i);
+        const h1 = (h1m?.[1] || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const idx = h1m?.index ?? 0;
+        const body = strip(html.slice(Math.max(0, idx), idx + 15000)).slice(0, 1600);
+        const dates = parseDateFromText(h1 + ' ' + body.slice(0, 400));
+        title = h1 || cat.label;
+        docIso = dates?.iso || null;
+        excerpt = body.slice(0, 600);
+      } else {
+        if (postLinks.length > 0) {
+          title = postLinks[0].title;
+          docIso = postLinks[0].iso;
+          excerpt = postLinks[0].title;
+        } else {
+          title = cat.label;
+          excerpt = 'Đang cập nhật dữ liệu';
+        }
+      }
+
+      for (const pl of postLinks) {
+        if (pl.fresh && !report.breaking.some(b => b.title === pl.title || b.url === pl.url)) {
+          report.breaking.push({ ...pl, category: cat.label });
+        }
+      }
+
+      report.categories.push({
+        id: cat.id,
+        label: cat.label,
+        url: cat.url,
+        title: title || cat.label,
+        docIso,
+        fresh: isFresh(docIso, 3),
+        level: postLinks.some(p => p.fresh && p.level === 'red') ? 'red' :
+               postLinks.some(p => p.fresh && p.level === 'orange') ? 'orange' :
+               (docIso && isFresh(docIso, 3) ? 'info' : 'stale'),
+        excerpt,
+        warnings: postLinks.slice(0, 8),
+        freshWarnings: postLinks.filter(p => p.fresh).length,
+      });
+      console.log(`OK ${cat.id}: "${title.slice(0, 45)}" date=${docIso} posts=${postLinks.length}`);
+    } catch (e) {
+      report.errors.push(`${cat.id}: ${e.message}`);
+      console.log(`FAIL ${cat.id}: ${e.message}`);
+    }
+    await sleep(800);
+  }
+
+  // Sắp xếp tin khẩn cấp: Đỏ trước, Cam tiếp theo, sau đó theo thời gian
+  report.breaking.sort((a, b) => {
+    if (a.level === 'red' && b.level !== 'red') return -1;
+    if (b.level === 'red' && a.level !== 'red') return 1;
+    if (a.level === 'orange' && b.level === 'info') return -1;
+    if (b.level === 'orange' && a.level === 'info') return 1;
+    return 0;
+  });
+
+  return report;
 }
 
+const report = await collectAll();
 await fs.mkdir(DIST, { recursive: true });
-await fs.writeFile(path.join(DIST, 'nchmf.json'), JSON.stringify(report));
-console.log(`\nXong. ${report.categories.length} chuyên mục, lỗi ${report.errors.length}.`);
+await fs.writeFile(path.join(DIST, 'nchmf.json'), JSON.stringify(report, null, 2));
+console.log(`\nXong. Đã lưu dist/nchmf.json: ${report.breaking.length} tin nóng, ${report.categories.length} chuyên mục, lỗi ${report.errors.length}.`);

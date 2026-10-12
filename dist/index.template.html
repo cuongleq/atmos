@@ -48,13 +48,14 @@
 <div id="airMassBox"><p class="muted">Đang tải…</p></div></article>
 
 <article class="panel"><div class="section-head"><div><p class="eyebrow">LƯU LƯỢNG &amp; MỰC NƯỚC SÔNG · GloFAS</p><h3>Các con sông quanh đây</h3></div><span class="small" id="riverMeta">—</span></div>
-<div class="table-wrap"><table><thead><tr><th>Sông / vị trí</th><th>Lưu lượng</th><th>Mực nước quy ước</th><th>So TB 30 ngày</th><th>Dự báo +24h</th><th>Mốc tham khảo</th></tr></thead><tbody id="riverLevels"><tr><td colspan="6" class="muted">Đang tải…</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Sông / vị trí</th><th>Lưu lượng hôm nay</th><th>Mực nước quy ước</th><th>Xếp trong 12 tháng</th><th>So TB 30 ngày</th><th>Dự báo +24h</th><th>Cảnh báo tham chiếu</th></tr></thead><tbody id="riverLevels"><tr><td colspan="7" class="muted">Đang tải…</td></tr></tbody></table></div>
 <p class="small">Tên sông tra từ OSM theo đường nước có tên gần ô lưới GloFAS: <span id="riverNameMeta">—</span>. Ô không có tên trong OSM thì ghi rõ là chưa có tên, không đoán theo vùng.</p>
-<p class="small">Đơn vị là m³/s (lưu lượng), không phải mực nước tính bằng mét — quy đổi sang mét cần đường đo đạc riêng của từng tuyến sông. Mỗi thẻ là một ô lưới GloFAS 5 km khác nhau trong bán kính khoảng 30 km; GloFAS lấy con sông lớn nhất của mỗi ô nên các con sông lớn và kênh nhỏ có thể cùng xuất hiện.</p>
+<p class="small">Quét <strong>toàn bộ</strong> các ô lưới GloFAS 5 km có tâm trong bán kính 10 km — lưới mẫu cách nhau đúng 5 km nên không bỏ sót ô nào, và mọi ô tìm thấy đều được liệt kê chứ không cắt còn con gần nhất. GloFAS lấy con sông lớn nhất của mỗi ô nên sông lớn và kênh nhỏ có thể cùng xuất hiện.</p>
+<p class="small"><strong>Mức nước là số quy ước, không phải số đo.</strong> Quy đổi lưu lượng (m³/s) sang mét cần đường đo đạc đúng từng trạm — dữ liệu đó do cơ quan thủy văn quản lý và không có trong nguồn mở. Ở đây dùng công thức lũy thừa H = a·(Q/q₀)^b với hệ số tham khảo để <em>so sánh giữa các ngày của cùng một tuyến</em>, tuyệt đối không dùng làm số đo đối chiếu.</p>
+<p class="small"><strong>Cảnh báo là ngưỡng tham chiếu, không phải báo động chính thức.</strong> Mức báo động 1/2/3 do cơ quan thủy văn đặt riêng cho từng trạm theo đường đo đạc thật và không có trong nguồn mở. Ở đây mỗi ngưỡng là một <em>phân vị của chính lịch sử 12 tháng GloFAS của tuyến đó</em>: P90 = Cảnh báo, P95 = Báo động 1, P98 = Báo động 2, P99,5 = Báo động 3. Sông nào có lịch sử dữ dội hơn thì ngưỡng của nó cao hơn. Khi có cảnh báo lũ chính thức tại địa phương, hãy theo đúng cơ quan thủy văn.</p>
 <div id="riverList" class="river-list"><p class="muted">Đang tải…</p></div>
 <div id="riverChart"><p class="muted">Chọn một con sông.</p></div>
-<p class="small">So sánh với trung bình 30 ngày gần nhất của chính tuyến sông đó, không so với ngưỡng cảnh báo.</p>
-<p class="small"><strong>Cột mực nước là số quy ước, không phải số đo.</strong> Quy đổi lưu lượng (m³/s) sang mét cần đường đo đạc đúng từng trạm — dữ liệu đó do cơ quan thủy văn quản lý và không có trong nguồn mở. Ở đây dùng công thức lũy thừa H = a·Q^b với hệ số tham khảo để <em>so sánh giữa các ngày</em>, tuyệt đối không dùng làm số đo đối chiếu. Khi có cảnh báo lũ thuộc về địa phương, hãy theo đúng cơ quan thủy văn.</p></article>
+<p class="small">Cột "Xếp trong 12 tháng" cho biết hôm nay con sông đó cao thứ mấy trong 365 ngày GloFAS vừa tải — số nhỏ là cao hơn.</p></article>
 </section>
 
 <section id="news" class="view" hidden>

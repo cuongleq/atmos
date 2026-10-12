@@ -612,14 +612,13 @@ async function fetchRivers() {
   const cells = await scanRiverCells();
   if (!cells.length) return [];
   const out = await pLimit(cells, 3, entry => fetchRiverSeries(entry));
-  const list = out.filter(Boolean).sort((a, b) => a.km - b.km);
-  // Đánh dấu con lớn nhất để phân biệt sông chính với kênh nhỏ.
+  const merged = mergeDuplicateRivers(out.filter(Boolean).sort((a, b) => a.km - b.km));
   let biggest = null;
-  for (const r of list) {
+  for (const r of merged) {
     const v = r.qMedianToday;
     if (E.finite(v) && (!biggest || v > biggest.v)) biggest = { v, km: r.km };
   }
-  return list.map(r => ({
+  return merged.map(r => ({
     ...r,
     isLargest: !!biggest && Math.abs(r.km - biggest.km) < 0.05,
     levels: E.floodLevels({
@@ -629,6 +628,54 @@ async function fetchRivers() {
       rating: ratingFor(r.qMedianToday),
     }),
   }));
+}
+
+/*
+ * Gộp các ô lưới GloFAS cùng trả về một dòng chảy.
+ *
+ * GloFAS lấy con sông lớn nhất nằm trong ô, và ở vùng đồng bằng như đồng bằng
+ * sông Cửu Long, một dòng chảy duy nhất có thể chiếm nhiều ô liền nhau. Không
+ * gộp thì người dùng thấy năm "con sông" khác nhau mà lưu lượng, trung bình và
+ * đỉnh gần như giống hệt nhau — đúng là dữ liệu lặp, không phải năm con sông.
+ *
+ * Hai ô được coi là cùng một tuyến khi chuỗi lưu lượng khớp nhau từng ngày.
+ * Ô đại diện là ô gần người dùng nhất, và số ô bị gộp được ghi lại để nói rõ
+ * với người đọc thay vì lặng lẽ bớt dòng.
+ */
+function mergeDuplicateRivers(list) {
+  const out = [];
+  for (const r of list) {
+    const prev = out.find(o => sameRiver(o, r));
+    if (!prev) { out.push({ ...r, mergedCells: 1 }); continue; }
+    prev.mergedCells = (prev.mergedCells || 1) + 1;
+    prev.mergedKm = [...(prev.mergedKm || []), r.km];
+  }
+  return out;
+}
+
+function sameRiver(a, b) {
+  // Hai ô phải là lân cận. Hai ô cách xa mà trùng chuỗi thì nhiều khả năng
+  // chỉ là hai tuyến cùng chịu một nhịp điều hoà, không phải một tuyến.
+  if (Math.abs(a.km - b.km) > 12) return false;
+  const n = Math.min(a.history.length, b.history.length);
+  if (n < 30) return false;
+  const A = a.history.slice(-n), B = b.history.slice(-n);
+  let same = 0, seen = 0;
+  for (let i = 0; i < n; i++) {
+    if (!E.finite(A[i]) || !E.finite(B[i])) continue;
+    seen++;
+    // Ngưỡng tương đối: cùng một dòng chảy có thể lệch vài phần trăm giữa hai
+    // ô (có nhánh nhập thêm giữa chừng), nhưng khác gấp đôi là hai dòng khác.
+    const tol = Math.max(0.05, 0.02 * Math.abs(A[i]));
+    if (Math.abs(A[i] - B[i]) <= tol) same++;
+  }
+  /*
+   * Ngưỡng 70%, không phải 98%. Đo thực nghiệm trên dữ liệu GloFAS cho thấy hai
+   * ô của cùng một dòng chảy khớp nhau khoảng 78–86% số ngày, còn hai kênh nhỏ
+   * khác nhau chỉ khớp 30–43%. Ngưỡng 98% không gộp được gì cả, còn 50% thì
+   * nuốt nhầm các kênh con.
+   */
+  return seen >= 30 && same / seen > 0.7;
 }
 
 function riverRiskOf(r) {
@@ -655,17 +702,22 @@ function renderRivers() {
   if (!box) return;
   if (!rivers) { box.innerHTML = '<p class="muted">Đang tải lưu lượng sông…</p>'; return; }
   if (!rivers.length) {
-    box.innerHTML = '<p class="muted">Không có con sông nào trong bán kính khoảng 30 km theo dữ liệu GloFAS 5 km. Các vùng ven biển phẳng thường rơi vào tình huống này.</p>';
+    box.innerHTML = `<p class="muted">Không có ô lưới GloFAS nào có sông trong bán kính ${RIVER_RADIUS_KM} km. Các vùng ven biển phẳng thường rơi vào tình huống này vì GloFAS chỉ mô tả lưu lượng trên dòng sông có đủ lưu lượng để ghi nhận.</p>`;
     return;
   }
   if (riverSel >= rivers.length) riverSel = 0;
   box.innerHTML = rivers.map((r, i) => {
     const k = riverRiskOf(r);
+    const a = riverAlert(r);
     const tone = !k ? '' : (k.vsRecent >= 0.25 ? 'high' : k.vsRecent <= -0.25 ? 'low' : '');
+    const rt = ratingFor(k?.q);
+    const H = E.nominalStage(k?.q, rt.a, rt.b, rt.q0);
     return `<button class="river-card${i === riverSel ? ' selected' : ''}" data-river="${i}">
       <span class="river-top"><strong>${fmt(r.km, 1)} km</strong><span class="small">${r.isLargest ? 'sông lớn nhất · ' : ''}${compass(E.bearingDeg(place, r.cell))}</span></span>
       <span class="river-q">${k ? fmt(k.q, 1) : '—'}<em> m³/s</em></span>
+      <span class="river-h${a?.level ? ' lv ' + a.level.tone : ''}">${E.finite(H) ? fmt(H, 2) : '—'}<em> m quy ước</em></span>
       <span class="river-bar"><i style="width:${Math.max(4, Math.min(100, k ? k.vsRecent * 100 + 50 : 50))}%" class="${tone}"></i></span>
+      ${a?.level ? `<span class="warn-chip ${a.level.tone}">${a.level.label}</span>` : '<span class="small">dưới ngưỡng tham chiếu</span>'}
       <span class="small">${k && E.finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '% so với TB 30 ngày' : '—'}</span>
     </button>`;
   }).join('');
@@ -675,39 +727,65 @@ function renderRivers() {
   renderRiverChart();
 }
 
-/** Hydrograph: median + p25/p75 band for the selected river. */
+/*
+ * Đường hydrograph: 120 ngày gần nhất + 7 ngày dự báo, kèm các ngưỡng tham
+ * chiếu. Không vẽ cả năm — 372 điểm trên một khung nhỏ là một vệt đen, và
+ * người đọc không nhìn ra được giá trị nào là hôm nay.
+ */
+const RIVER_CHART_DAYS = 120;
+
 function renderRiverChart() {
   const host = $('riverChart');
   if (!host) return;
   if (!rivers || !rivers.length) { host.innerHTML = '<p class="muted">Chọn một con sông.</p>'; return; }
   const r = rivers[riverSel];
-  const q = r.median?.length === r.q.length && r.median.some(E.finite) ? r.median : r.q;
-  const n = q.length;
-  const lo = 0, hi = n - 1;
+  const today = r.iToday ?? 0;
+  const lo = Math.max(0, today - RIVER_CHART_DAYS);
+  const hi = r.q.length - 1;
+  const n = hi - lo + 1;
+  if (n < 2) { host.innerHTML = '<p class="muted">Không đủ số liệu để vẽ.</p>'; return; }
+  const series = i => (r.median?.[i] != null && E.finite(r.median[i]) ? r.median[i] : r.q[i]);
   const vals = [];
   for (let i = lo; i <= hi; i++) {
-    for (const c of [q, r.p25, r.p75]) if (E.finite(c?.[i])) vals.push(c[i]);
+    for (const c of [series, r.p25, r.p75]) if (E.finite(c?.[i])) vals.push(c[i]);
   }
+  for (const t of r.levels?.thresholds || []) if (E.finite(t.q)) vals.push(t.q);
   if (!vals.length) { host.innerHTML = '<p class="muted">Không có số liệu.</p>'; return; }
-  const vmax = Math.max(...vals) * 1.12 || 1;
-  const W = 720, H = 260, PAD = 40, PB = 46;
+  const vmax = Math.max(...vals) * 1.1 || 1;
+  const W = 720, H = 280, PAD = 46, PB = 46;
   const sx = i => PAD + (i - lo) / (hi - lo) * (W - PAD * 2);
   const sy = v => H - PB - (v / vmax) * (H - PAD - PB);
-  const fIdx = r.time.findIndex((t, i) => t >= (new Date()).toISOString().slice(0, 10));
+  const at = i => r.time[i];
   const band = (i) => {
     const a = r.p25?.[i], b = r.p75?.[i];
-    return E.finite(a) && E.finite(b) ? `<rect x="${sx(i) - 3}" y="${sy(b)}" width="6" height="${Math.max(1, sy(a) - sy(b))}" fill="#2a5f96" opacity=".18"/>` : '';
+    return E.finite(a) && E.finite(b) ? `<rect x="${(sx(i) - (W - PAD * 2) / (hi - lo) / 2).toFixed(1)}" y="${sy(b).toFixed(1)}" width="${Math.max(1, (W - PAD * 2) / (hi - lo)).toFixed(1)}" height="${Math.max(1, sy(a) - sy(b)).toFixed(1)}" fill="#2a5f96" opacity=".16"/>` : '';
   };
-  const line = q.map((v, i) => E.finite(v) ? (i === 0 ? 'M' : 'L') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1) : '').join('').replace(/M(?=[^L])/g, 'M');
-  const ticks = r.time.map((t, i) => (i % 7 === 0 ? `<text x="${sx(i)}" y="${H - 12}" class="tvb" text-anchor="middle">${t.slice(8)}/${t.slice(5, 7)}</text>` : '')).join('');
-  const cut = fIdx > 0 ? `<line x1="${sx(fIdx)}" y1="${PAD}" x2="${sx(fIdx)}" y2="${H - PB}" stroke="#b54ae0" stroke-dasharray="4 3"/><text x="${sx(fIdx) + 4}" y="${PAD + 12}" class="tvb">nay</text>` : '';
+  const path = (from, to) => {
+    let d = '', pen = false;
+    for (let i = from; i <= to; i++) {
+      const v = series(i);
+      if (!E.finite(v)) { pen = false; continue; }
+      d += (pen ? 'L' : 'M') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1) + ' ';
+      pen = true;
+    }
+    return d;
+  };
+  const hist = path(lo, today), fc = path(today, hi);
+  const ticks = [];
+  for (let i = lo; i <= hi; i += 14) ticks.push(`<text x="${sx(i).toFixed(1)}" y="${H - 14}" class="tvb" text-anchor="middle">${String(at(i)).slice(5, 7)}/${String(at(i)).slice(8, 10)}</text>`);
+  const cut = today > lo ? `<line x1="${sx(today).toFixed(1)}" y1="${PAD}" x2="${sx(today).toFixed(1)}" y2="${H - PB}" stroke="#b54ae0" stroke-dasharray="4 3"/><text x="${(sx(today) + 5).toFixed(1)}" y="${PAD + 12}" class="tvb">nay</text>` : '';
+  const levels = (r.levels?.thresholds || []).filter(t => E.finite(t.q)).map(t =>
+    `<line x1="${PAD}" y1="${sy(t.q).toFixed(1)}" x2="${W - PAD}" y2="${sy(t.q).toFixed(1)}" stroke="${LEVEL_COLOR[t.tone]}" stroke-width="1" stroke-dasharray="2 4" opacity=".85"/>
+     <text x="${W - PAD - 4}" y="${(sy(t.q) - 4).toFixed(1)}" class="tvb" text-anchor="end" fill="${LEVEL_COLOR[t.tone]}">${t.label} ${fmt(t.q, 0)} m³/s</text>`).join('');
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Hydrograph">
     <line x1="${PAD}" y1="${H - PB}" x2="${W - PAD}" y2="${H - PB}" stroke="#c7d2dc"/>
     ${[0.25, 0.5, 0.75, 1].map(f => `<text x="${PAD - 6}" y="${sy(vmax * f) + 4}" class="tvb" text-anchor="end">${fmt(vmax * f, 0)}</text>`).join('')}
-    ${q.map((_, i) => band(i)).join('')}${cut}
-    <path d="${line}" fill="none" stroke="#2a5f96" stroke-width="2"/>
-    ${ticks}</svg>
-    <p class="small">Vạch xanh là lưu lượng trung vị; dải xanh nhạt là khoảng p25–p75 của 50 thành viên tổ hợp GloFAS, phản ánh mức chắc chắn của dòng chảy chứ không phải mực nước tính bằng mét. Nguồn: Global Flood Awareness System (GloFAS v4) qua Open-Meteo.</p>`;
+    ${Array.from({ length: n }, (_, i) => band(lo + i)).join('')}
+    ${levels}${cut}
+    <path d="${hist}" fill="none" stroke="#2a5f96" stroke-width="2"/>
+    <path d="${fc}" fill="none" stroke="#2a5f96" stroke-width="2" stroke-dasharray="5 4"/>
+    ${ticks.join('')}</svg>
+    <p class="small">Đường đậm là lưu lượng trung vị quan sát, đường đứt là 7 ngày dự báo; dải xanh nhạt là khoảng p25–p75 của bộ thành viên tổ hợp GloFAS, phản ánh mức chắc chắn của dòng chảy chứ không phải mực nước tính bằng mét. Các đường ngang là ngưỡng <strong>tham chiếu</strong> lấy từ phân vị lịch sử 12 tháng của chính tuyến này, không phải báo động chính thức. Nguồn: Global Flood Awareness System (GloFAS v4) qua Open-Meteo.</p>`;
 }
 
 async function loadAirMassAndRivers() {
@@ -979,6 +1057,15 @@ let airGridRetry = null;
 
 /* ---------- C. ten sông tu OSM ---------- */
 
+/**
+ * Bao xa một tên OSM được coi là đại diện cho ô lưới GloFAS.
+ *
+ * Ô GloFAS rộng 5 km và chỉ chứa lưu lượng dòng sông chính, nên tên đường nước
+ * nằm sát mép ô vẫn hợp lý. Quá ngần thì tên sẽ thuộc về một con kênh khác
+ * hoặc về nhánh sông ở xa — tên có thật nhưng không phải tên của tuyến này.
+ */
+const NAME_MATCH_KM = 4;
+
 let osmToken = 0;
 
 /**
@@ -1036,11 +1123,14 @@ async function fetchRiverNames(riverList) {
           const lon = pt[0], lat = pt[1];
           if (!E.finite(lat) || !E.finite(lon)) continue;
           const km = E.distanceKm(r.cell, { lat, lon });
-          if (km > 25) continue;   // quá xa ô lưới thì không phải tuyến này
+          // Chỉ nhận tên nằm thật gần ô lưới. Một đường nước cách ô GloFAS
+          // mấy chục km không phải là con sông mà ô đó đại diện — gán tên ấy
+          // vào là bịa dữ liệu, dù nó là tên có thật trong OSM.
+          if (km > NAME_MATCH_KM) continue;
           found.push({ name, km });
         }
-        // Đã có tên trong 15 km thì không cần dò tiếp.
-        if (found.some(f => f.km <= 15)) break;
+        // Đã có tên rất gần thì không cần dò tiếp.
+        if (found.some(f => f.km <= 5)) break;
       } catch { /* không phân biệt được lỗi mạng với không có tên; đánh dấu bên dưới */ }
     }
     // Chỉ coi là "không tra được" khi KHÔNG request nào thành công. Nếu nguồn
@@ -1073,6 +1163,27 @@ async function fetchRiverNames(riverList) {
     }
     return r;
   });
+  /*
+   * Một tên chỉ thuộc về một ô. Hai ô GloFAS cách nhau vài km có thể cùng khớp
+   * một tên OSM, và hiển thị cùng một cái tên cho hai dòng chảy khác nhau là
+   * sai. Ô nào khớp tên xa hơn thì nhường tên cho ô khớp gần hơn.
+   */
+  const byName = new Map();
+  for (const r of riverList) {
+    if (!r.name) continue;
+    const k = r.name.toLowerCase();
+    const prev = byName.get(k);
+    if (!prev || (r.nameKm ?? 1e9) < (prev.nameKm ?? 1e9)) byName.set(k, r);
+  }
+  for (const r of riverList) {
+    if (!r.name) continue;
+    const owner = byName.get(r.name.toLowerCase());
+    if (owner && owner !== r) {
+      r.duplicateOf = owner.km;
+      r.name = null;
+      r.nameOthers = [];
+    }
+  }
   if (token === osmToken && riverListMeta) riverListMeta.textContent = riverList.length + ' ô lưới đã quét';
   if (token === osmToken && meta) {
     const named = riverList.filter(r => r.name).length;
@@ -1136,47 +1247,59 @@ function ratingFor(q) {
   return q >= 300 ? RATING.river : RATING.channel;
 }
 
+const LEVEL_COLOR = { low: '#2e8b57', mid: '#c9a227', high: '#e07b39', severe: '#c0392b' };
+
 function renderRiverLevels() {
   const host = $('riverLevels');
   if (!host) return;
   if (!rivers || !rivers.length) { host.innerHTML = '<p class="small">Chưa có dữ liệu sông.</p>'; return; }
   const anyPending = rivers.some(r => !r.nameTried);
-  host.innerHTML = rivers.slice(0, 8).map((r, i) => {
+  host.innerHTML = rivers.map((r, i) => {
     const k = riverRiskOf(r);
     if (!k) return '';
     const rt = ratingFor(k.q);
     const H = E.nominalStage(k.q, rt.a, rt.b, rt.q0);
     const p25H = E.nominalStage(k.p25, rt.a, rt.b, rt.q0);
     const p75H = E.nominalStage(k.p75, rt.a, rt.b, rt.q0);
-    const warn = rt === RATING.channel ? '' : H >= 3.5 ? 'high' : H >= 2.5 ? 'mid' : 'low';
-    const crossQ = rt.ref != null ? E.stageToQ(rt.ref, rt.a, rt.b, rt.q0) : null;
+    const L = r.levels;
 
-    // +24h forecast
-    const idxToday = Math.max(0, r.q.length - 7);
-    const idx24h = Math.min(r.q.length - 1, idxToday + 1);
-    const qToday = r.q[idxToday];
+    // +24h
+    const idx24h = Math.min(r.q.length - 1, r.iToday + 1);
     const q24h = r.q[idx24h];
-    const trend = (q24h != null && qToday != null) ? (q24h > qToday + 0.1 ? '↑' : q24h < qToday - 0.1 ? '↓' : '→') : '';
+    const trend = (E.finite(q24h) && E.finite(k.q)) ? (q24h > k.q + 0.1 ? '↑' : q24h < k.q - 0.1 ? '↓' : '→') : '';
     const h24h = E.nominalStage(q24h, rt.a, rt.b, rt.q0);
 
     // Ba trạng thái khác nhau: đang tra, tra lỗi, và thật sự không có tên.
-    const name = r.name || (r.nameFailed ? 'Không tra được tên' : r.nameTried ? 'Chưa có tên trong OSM' : 'đang tra tên…');
+    const name = r.name || (r.duplicateOf != null
+      ? 'cùng tên với ô cách ' + fmt(r.duplicateOf, 1) + ' km'
+      : r.nameFailed ? 'Không tra được tên' : r.nameTried ? 'Chưa có tên trong OSM' : 'đang tra tên…');
+
+    const alertCell = !L ? '<span class="tiny">chưa đủ lịch sử</span>'
+      : (L.now
+        ? `<span class="warn-chip ${L.now.tone}">${L.now.label}</span><br><span class="tiny">≥ ${fmt(L.now.q, 1)} m³/s</span>`
+        : `<span class="tiny">dưới ngưỡng</span><br><span class="tiny">cần ${fmt(L.thresholds[0].q, 1)} m³/s</span>`)
+      + (L.peakBand && (!L.now || L.peakBand.level > L.now.level)
+        ? `<br><span class="warn-chip ${L.peakBand.tone}">7 ngày tới: ${L.peakBand.label}</span>` : '');
+
+    const pctCell = !L || !E.finite(L.percent) ? '<span class="tiny">—</span>'
+      : `thứ <strong>${L.rankFromTop}</strong> / ${L.n}<br><span class="tiny">TB ${fmt(L.p50, 1)} · max ${fmt(L.max, 1)} m³/s</span>`;
+
     return '<tr' + (i === riverSel ? ' class="chosen"' : '') + ' data-river="' + i + '">' +
       '<td><strong>' + esc(name) + '</strong>' + (r.nameOthers?.length ? '<br><span class="tiny">còn gọi: ' + esc(r.nameOthers.join(', ')) + '</span>' : '') +
       '<br><span class="tiny">ô lưới cách bạn ' + fmt(r.km, 1) + ' km · ' + compass(E.bearingDeg(place, r.cell)) +
-      (r.nameKm != null ? ' · tên đường nước cách ô lưới ' + fmt(r.nameKm, 1) + ' km' : '') + '</span></td>' +
+      (r.nameKm != null ? ' · tên đường nước cách ô lưới ' + fmt(r.nameKm, 1) + ' km' : '') +
+      (r.mergedCells > 1 ? '<br><span class="tiny">ô lưới này gộp ' + r.mergedCells + ' ô GloFAS cùng dòng chảy (cách thêm: ' + (r.mergedKm || []).map(x => fmt(x, 1)).join(', ') + ' km)</span>' : '') + '</span></td>' +
       '<td>' + fmt(k.q, 1) + '<span class="tiny"> m³/s</span></td>' +
-      '<td><strong class="lv ' + warn + '">' + (E.finite(H) ? fmt(H, 2) : '—') + ' m</strong>' +
+      '<td><strong class="lv">' + (E.finite(H) ? fmt(H, 2) : '—') + ' m</strong>' +
       (E.finite(p25H) && E.finite(p75H) ? '<br><span class="tiny">' + fmt(p25H, 2) + '–' + fmt(p75H, 2) + ' m</span>' : '') +
       '<br><span class="tiny">' + rt.label + '</span></td>' +
+      '<td>' + pctCell + '</td>' +
       '<td>' + (E.finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '%' : '—') + '</td>' +
       '<td>' + (E.finite(h24h) ? fmt(h24h, 2) + ' m <span class="tiny">' + trend + '</span>' : '—') + '</td>' +
-      '<td>' + (E.finite(crossQ) && E.finite(k.q)
-        ? (k.q >= crossQ ? '<span class="warn-chip orange">đã vượt ' + fmt(rt.ref, 1) + ' m</span>' : '<span class="tiny">cần ' + fmt(crossQ, 0) + ' m³/s</span>')
-        : '<span class="tiny">—</span>') + '</td>' +
+      '<td>' + alertCell + '</td>' +
       '</tr>';
   }).join('')
-    + (anyPending ? '<tr><td colspan="6" class="muted tiny">Đang tra tên sông trong OSM cho các ô còn lại…</td></tr>' : '');
+    + (anyPending ? '<tr><td colspan="7" class="muted tiny">Đang tra tên sông trong OSM cho các ô còn lại…</td></tr>' : '');
   host.querySelectorAll('[data-river]').forEach(tr => {
     tr.onclick = () => { riverSel = +tr.dataset.river; renderRivers(); renderRiverLevels(); };
   });

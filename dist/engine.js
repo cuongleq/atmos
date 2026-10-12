@@ -1076,33 +1076,51 @@
       if (zSorted.length < 200) return null;
       const base = template || Z_NODES;
       const nodes = base.map(v => v * k).sort((a, b) => a - b);
+      // The 10th and 90th percentile of the fan, NOT its extremes: the extremes
+      // are the tail and always cover more than the band being calibrated.
       const loZ = nodes[Math.floor(0.1 * K_MEMBERS)];
       const hiZ = nodes[Math.ceil(0.9 * K_MEMBERS) - 1];
-      // Sorted bounds: count inside [loZ, hiZ] as high(loZ) .. high(hiZ).
+      const q25 = nodes[Math.floor(0.25 * K_MEMBERS)];
+      const q75 = nodes[Math.ceil(0.75 * K_MEMBERS) - 1];
+      // Sorted bounds: count inside [lo, hi] as high(lo) .. high(hi).
       const above = v => {
         let a = 0, b = zSorted.length;
         while (a < b) { const m = (a + b) >> 1; if (zSorted[m] < v) a = m + 1; else b = m; }
         return a;
       };
-      return (above(hiZ) - above(loZ)) / zSorted.length;
+      return {
+        wide: (above(hiZ) - above(loZ)) / zSorted.length,
+        mid: (above(q75) - above(q25)) / zSorted.length,
+      };
     };
     let mult = 1;
     if (template) {
-      // Smallest factor whose 10–90 band covers 80% of the fitting window.
-      // Coverage rises with the factor, so the invariant is: lo is too narrow,
-      // hi is wide enough. Each step keeps the answer inside [lo, hi].
+      /*
+       * Smallest factor at which BOTH intervals reach their nominal coverage.
+       *
+       * Calibrating on the 10–90 band alone leaves the inner 25–75 band short:
+       * the RMS-based width is inflated by the tail, so the middle of the fan is
+       * proportionally too narrow, and a reader looking at the inner band sees an
+       * over-confident forecast. Taking the smaller of the two ratios means the
+       * fan widens until the binding interval is satisfied, and the other one
+       * cannot be behind.
+       */
+      const score = k => {
+        const c = bandCover(k);
+        return c === null ? null : Math.min(c.wide / 0.8, c.mid / 0.5);
+      };
       let lo = 0.25, hi = 6;
-      const wide = bandCover(hi);
-      if (wide !== null && wide >= 0.8) {
+      const wide = score(hi);
+      if (wide !== null && wide >= 1) {
         for (let it = 0; it < 26; it++) {
           const mid = Math.sqrt(lo * hi);
-          const c = bandCover(mid);
-          if (c !== null && c >= 0.8) hi = mid; else lo = mid;
+          const c = score(mid);
+          if (c !== null && c >= 1) hi = mid; else lo = mid;
         }
         mult = hi;
       } else if (wide !== null) {
-        // Even the widest allowed fan cannot reach 80%: keep the fan honest and
-        // say so rather than inflating the numbers to fit the target.
+        // Even the widest allowed fan cannot reach the nominal coverage: keep
+        // the fan honest and let the reported coverage show the shortfall.
         mult = 6;
       }
     }

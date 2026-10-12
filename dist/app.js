@@ -664,9 +664,10 @@ function sameRiver(a, b) {
   for (let i = 0; i < n; i++) {
     if (!E.finite(A[i]) || !E.finite(B[i])) continue;
     seen++;
-    // Ngưỡng tương đối: cùng một dòng chảy có thể lệch vài phần trăm giữa hai
-    // ô (có nhánh nhập thêm giữa chừng), nhưng khác gấp đôi là hai dòng khác.
-    const tol = Math.max(0.05, 0.02 * Math.abs(A[i]));
+    // Ngưỡng tương đối: cùng một dòng chảy có thể lệch tới 5% giữa hai ô (có
+    // nhánh nhập thêm giữa chừng, và GloFAS tự định lượng lưu lượng riêng cho
+    // từng ô), nhưng khác gấp đôi là hai dòng khác nhau.
+    const tol = Math.max(0.05, 0.05 * Math.abs(A[i]));
     if (Math.abs(A[i] - B[i]) <= tol) same++;
   }
   /*
@@ -1239,12 +1240,17 @@ const RATING = {
 };
 
 /**
- * Chọn bộ hệ số theo quy mô lưu lượng. Ngưỡng 300 m³/s phân tách tuyến sông
- * lớn với kênh nhỏ; đây là đường phân loại của riêng ứng dụng, không phải
- * phân loại của cơ quan quản lý.
+ * Chọn bộ hệ số theo quy mô lưu lượng. Ngưỡng 100 m³/s phân tách tuyến sông
+ * với kênh nhỏ; đây là đường phân loại của riêng ứng dụng, không phải phân
+ * loại của cơ quan quản lý.
+ *
+ * Ngưỡng 100 chứ không phải 300 vì một dòng chảy 100 m³/s đã là sông thật, và
+ * bộ hệ số của kênh nhỏ sẽ nâng nó lên 3 m — cao hơn cả sông lớn. Sai ở đây
+ * làm mực nước quy ước vô nghĩa, mà mức này chính là thứ người đọc nhìn vào
+ * để quyết định có phải lo lắng hay không.
  */
 function ratingFor(q) {
-  return q >= 300 ? RATING.river : RATING.channel;
+  return q >= 100 ? RATING.river : RATING.channel;
 }
 
 const LEVEL_COLOR = { low: '#2e8b57', mid: '#c9a227', high: '#e07b39', severe: '#c0392b' };

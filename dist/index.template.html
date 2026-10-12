@@ -128,7 +128,37 @@
 <p class="small" id="disasterPlaceNote">Radar và cảnh báo sẽ gắn với vị trí đang dự báo.</p>
 
 <article class="panel"><div class="section-head"><div><p class="eyebrow">RADAR MƯA</p><h3>Lớp radar mưa RainViewer</h3></div><span class="tag dark">NGOẠI TUYẾN TRỰC TIẾP</span></div>
-<div id="radarMap" class="radar-map" role="img" aria-label="Bản đồ radar mưa"><div id="radarMsg" class="notice">Đang tải bản đồ radar…</div></div>
+<div id="radarMap" class="radar-map" role="img" aria-label="Bản đồ radar mưa và dự báo động">
+<div id="radarMsg" class="notice">Đang tải bản đồ radar…</div>
+<canvas id="animCanvas" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>
+<canvas id="animParticles" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>
+</div>
+<div class="anim-bar">
+  <button type="button" id="animToggle" class="secondary">Bật bản đồ dự báo động</button>
+  <span id="animMsg" class="small" role="status"></span>
+</div>
+<div id="animControls" class="anim-controls" hidden>
+  <div class="anim-row">
+    <label for="animVar">Biến</label>
+    <select id="animVar">
+      <option value="wind">Gió 10 m (có hạt động)</option>
+      <option value="temp">Nhiệt độ 2 m</option>
+      <option value="cloud">Phủ mây</option>
+      <option value="rain">Lượng mưa</option>
+    </select>
+    <button type="button" id="animPlay" class="secondary">▶ Phát</button>
+    <output id="animTime" class="small">—</output>
+  </div>
+  <input type="range" id="animSlider" min="0" max="47" value="0" step="1" aria-label="Giờ dự báo">
+  <div id="animLegend" class="anim-legend"></div>
+  <p class="small">Lớp này vẽ dự báo của mô hình trên lưới 13×13 điểm lấy quanh vị trí bạn chọn, phủ khoảng 470 × 470 km. Mỗi ô cách nhau 39 km nên các chi tiết nhỏ giữa các ô không có thật trong dữ liệu — đừng đọc vùng nhỏ hơn một thành phố. Muốn số chính xác tại một điểm, xem tab Dự báo.</p>
+</div>
+<div class="anim-bar">
+  <button type="button" id="radarPlay" class="secondary">▶ Phát radar</button>
+  <output id="radarFrameTime" class="small">Khung radar —</output>
+</div>
+<input type="range" id="radarFrameSlider" min="0" max="12" value="12" step="1" aria-label="Khung radar">
+<p class="small">RainViewer công bố khung quá khứ và khung dự báo của cơn mưa. Phát ở tốc độ ~1 khung/0,55 giây xấp xỉ thời gian thật, nên bạn xem được diễn biến như một đoạn video ngắn. Đây là quan sát thực tế từ vệ tinh, không phải mô hình dự báo.</p>
 <div id="radarLegend" class="radar-legend" aria-label="Chú giải màu radar"><strong>Mưa trên radar:</strong>
 <span><i style="background:#8fd0f5"></i>mưa nhẹ</span><span><i style="background:#3fae5a"></i>mưa vừa</span><span><i style="background:#f5e663"></i>mưa to</span><span><i style="background:#e34a3a"></i>mưa rất to / dông</span><span><i style="background:#b04ae3"></i>cực đoan, có thể kèm đá</span>
 <span class="tiny">Thang màu tương đối của RainViewer (màu càng nóng = mưa càng lớn). Vùng không màu là không có mưa trong khung giờ radar. Phóng quá sâu sẽ mờ dần do tile gốc chỉ tới zoom 7.</span></div>

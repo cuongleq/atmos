@@ -46,7 +46,34 @@ button,input,select{font:inherit}button,a,input,select,summary{touch-action:mani
 .warn-chip.low{background:#2e8b57}.warn-chip.mid{background:#c9a227}.warn-chip.high{background:#e07b39}.warn-chip.severe{background:#c0392b}
 .river-h{font-size:15px;font-weight:650;letter-spacing:-.2px;line-height:1.2;color:var(--muted)}
 .river-h em{font-size:11px;font-style:normal;letter-spacing:0;margin-left:3px;font-weight:400}
-.river-h.lv.low{color:#2e8b57}.river-h.lv.mid{color:#9a7a14}.river-h.lv.high{color:#c9601a}.river-h.lv.severe{color:#c0392b}.nchmf-section-title{font-size:15px;font-weight:700;margin:18px 0 10px;display:flex;align-items:center;gap:6px;color:var(--ink)}.nchmf-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfcfd;transition:all .18s ease}.nchmf-card:hover{border-color:var(--blue);background:#fff;box-shadow:0 3px 12px rgba(0,0,0,0.06);transform:translateY(-1px)}.nchmf-card.red{border-left:4px solid #c0392b;background:#fffaf9}.nchmf-card.orange{border-left:4px solid #e67e22;background:#fffdf9}.nchmf-card.info{border-left:4px solid #245fa1}.nchmf-card-title{font-size:14px;font-weight:700;margin:0 0 6px;line-height:1.45;color:var(--ink)}.nchmf-card-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}.nchmf-card-link{margin-left:auto;color:var(--blue);font-weight:600;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px}.nchmf-card-link:hover{text-decoration:underline;color:#184a83}.nchmf-routine-box{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}.nchmf-routine-box h4{margin:0 0 8px;font-size:15px}.nchmf-routine-box p{margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#334155}.nchmf-item{border-top:1px solid var(--line);padding:10px 0}.nchmf-item h4{margin:0 0 4px;font-size:14px}.nchmf-item p{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.river-h.lv.low{color:#2e8b57}.river-h.lv.mid{color:#9a7a14}.river-h.lv.high{color:#c9601a}.river-h.lv.severe{color:#c0392b}
+
+/* ==== lớp bản đồ dự báo động ==== */
+.radar-map{position:relative}
+.anim-canvas{position:absolute;left:0;top:0;z-index:410;pointer-events:none}
+#animCanvas{opacity:.74}
+#animParticles{z-index:411;opacity:.95}
+.anim-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 4px}
+.anim-controls{margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fbfdff}
+.anim-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.anim-row label{font-size:13px;font-weight:600;color:var(--muted)}
+.anim-row select{padding:7px 10px;min-width:180px}
+#animTime{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+#animSlider{width:100%;accent-color:var(--blue);margin:2px 0 10px}
+.anim-legend{display:flex;flex-direction:column;gap:6px}
+.anim-legend strong{font-size:13px;color:var(--ink)}
+.anim-ramp{position:relative;display:block;height:16px;border-radius:4px;border:1px solid var(--line);max-width:520px}
+.anim-ramp span{position:absolute;top:18px;transform:translateX(-50%);font-size:11px;color:var(--muted)}
+.anim-legend .tiny{margin-top:14px;max-width:70ch}
+@media(prefers-color-scheme:dark){
+  .anim-controls{background:#16203a;border-color:rgba(255,255,255,.12)}
+  .anim-ramp{border-color:rgba(255,255,255,.2)}
+}
+@media(max-width:640px){
+  .anim-row{gap:8px}
+  .anim-row select{min-width:0;flex:1 1 100%}
+  .anim-ramp{max-width:none}
+}.nchmf-section-title{font-size:15px;font-weight:700;margin:18px 0 10px;display:flex;align-items:center;gap:6px;color:var(--ink)}.nchmf-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfcfd;transition:all .18s ease}.nchmf-card:hover{border-color:var(--blue);background:#fff;box-shadow:0 3px 12px rgba(0,0,0,0.06);transform:translateY(-1px)}.nchmf-card.red{border-left:4px solid #c0392b;background:#fffaf9}.nchmf-card.orange{border-left:4px solid #e67e22;background:#fffdf9}.nchmf-card.info{border-left:4px solid #245fa1}.nchmf-card-title{font-size:14px;font-weight:700;margin:0 0 6px;line-height:1.45;color:var(--ink)}.nchmf-card-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}.nchmf-card-link{margin-left:auto;color:var(--blue);font-weight:600;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px}.nchmf-card-link:hover{text-decoration:underline;color:#184a83}.nchmf-routine-box{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}.nchmf-routine-box h4{margin:0 0 8px;font-size:15px}.nchmf-routine-box p{margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#334155}.nchmf-item{border-top:1px solid var(--line);padding:10px 0}.nchmf-item h4{margin:0 0 4px;font-size:14px}.nchmf-item p{margin:0 0 6px;font-size:13px;color:var(--muted)}
 /* ==== responsive ==== */
 /*
  * Ba lop bien tap:
@@ -644,7 +671,37 @@ footer strong{color:#fff}
 <p class="small" id="disasterPlaceNote">Radar và cảnh báo sẽ gắn với vị trí đang dự báo.</p>
 
 <article class="panel"><div class="section-head"><div><p class="eyebrow">RADAR MƯA</p><h3>Lớp radar mưa RainViewer</h3></div><span class="tag dark">NGOẠI TUYẾN TRỰC TIẾP</span></div>
-<div id="radarMap" class="radar-map" role="img" aria-label="Bản đồ radar mưa"><div id="radarMsg" class="notice">Đang tải bản đồ radar…</div></div>
+<div id="radarMap" class="radar-map" role="img" aria-label="Bản đồ radar mưa và dự báo động">
+<div id="radarMsg" class="notice">Đang tải bản đồ radar…</div>
+<canvas id="animCanvas" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>
+<canvas id="animParticles" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>
+</div>
+<div class="anim-bar">
+  <button type="button" id="animToggle" class="secondary">Bật bản đồ dự báo động</button>
+  <span id="animMsg" class="small" role="status"></span>
+</div>
+<div id="animControls" class="anim-controls" hidden>
+  <div class="anim-row">
+    <label for="animVar">Biến</label>
+    <select id="animVar">
+      <option value="wind">Gió 10 m (có hạt động)</option>
+      <option value="temp">Nhiệt độ 2 m</option>
+      <option value="cloud">Phủ mây</option>
+      <option value="rain">Lượng mưa</option>
+    </select>
+    <button type="button" id="animPlay" class="secondary">▶ Phát</button>
+    <output id="animTime" class="small">—</output>
+  </div>
+  <input type="range" id="animSlider" min="0" max="47" value="0" step="1" aria-label="Giờ dự báo">
+  <div id="animLegend" class="anim-legend"></div>
+  <p class="small">Lớp này vẽ dự báo của mô hình trên lưới 13×13 điểm lấy quanh vị trí bạn chọn, phủ khoảng 470 × 470 km. Mỗi ô cách nhau 39 km nên các chi tiết nhỏ giữa các ô không có thật trong dữ liệu — đừng đọc vùng nhỏ hơn một thành phố. Muốn số chính xác tại một điểm, xem tab Dự báo.</p>
+</div>
+<div class="anim-bar">
+  <button type="button" id="radarPlay" class="secondary">▶ Phát radar</button>
+  <output id="radarFrameTime" class="small">Khung radar —</output>
+</div>
+<input type="range" id="radarFrameSlider" min="0" max="12" value="12" step="1" aria-label="Khung radar">
+<p class="small">RainViewer công bố khung quá khứ và khung dự báo của cơn mưa. Phát ở tốc độ ~1 khung/0,55 giây xấp xỉ thời gian thật, nên bạn xem được diễn biến như một đoạn video ngắn. Đây là quan sát thực tế từ vệ tinh, không phải mô hình dự báo.</p>
 <div id="radarLegend" class="radar-legend" aria-label="Chú giải màu radar"><strong>Mưa trên radar:</strong>
 <span><i style="background:#8fd0f5"></i>mưa nhẹ</span><span><i style="background:#3fae5a"></i>mưa vừa</span><span><i style="background:#f5e663"></i>mưa to</span><span><i style="background:#e34a3a"></i>mưa rất to / dông</span><span><i style="background:#b04ae3"></i>cực đoan, có thể kèm đá</span>
 <span class="tiny">Thang màu tương đối của RainViewer (màu càng nóng = mưa càng lớn). Vùng không màu là không có mưa trong khung giờ radar. Phóng quá sâu sẽ mờ dần do tile gốc chỉ tới zoom 7.</span></div>
@@ -6086,6 +6143,8 @@ $('introNote').innerHTML = `Mỗi giá trị kèm dải 10–90% và xác suất
 /* ---------- disaster tab: radar + live alerts ---------- */
 
 let radarMap = null, radarLayer = null, alertLayer = null, radarInitialized = false;
+let radarFrames = null;   // chuỗi khung RainViewer để phát hoạt hình
+let radarTimer = 0;
 // Vị trí mà tab thiên tai đang theo dõi. Mặc định bám vị trí dự báo; khi người
 // dùng bấm chip khác thì giữ nguyên cho tới khi bấm lại "Vị trí dự báo".
 let disasterLoc = null, disasterFollow = true;
@@ -6195,6 +6254,9 @@ async function initRadar() {
       attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
     }).addTo(radarMap);
 
+    // Giữ cả chuỗi khung để phát hoạt hình. RainViewer trả về khung quá khứ và
+    // khung dự báo nhiều giờ; chỉ dùng khung cuối thì bản đồ đứng yên.
+    radarFrames = { host: data.host, frames, index: frames.length - 1 };
     const latest = frames[frames.length - 1];
     // Trả lại cấu hình Retina 512px vì máy chủ RainViewer chặn zoom > 7 đối với ảnh tổng hợp toàn cầu.
     // Việc dùng tile 512px + zoomOffset -1 chính là cách ép nó hiện độ phân giải cao gấp 4 lần bình thường.
@@ -6211,6 +6273,7 @@ async function initRadar() {
     $('radarMsg').textContent = 'Radar hiện tại · khung ' +
       new Date(latest.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
       ' (ICT).';
+    initRadarControls();
     const al = $('airLegend');
     if (al) al.innerHTML = airGrid ? airMassLegendHtml() : '';
     const tg = $('airGridToggle');
@@ -6225,6 +6288,560 @@ async function initRadar() {
   }
 }
 
+
+/* ---------- phát hoạt hình khung radar ---------- */
+
+/** Đổi sang khung radar thứ i, giữ nguyên lớp tile đang dùng. */
+function radarShowFrame(i) {
+  if (!radarFrames || !radarLayer) return;
+  const frames = radarFrames.frames;
+  const k = Math.max(0, Math.min(frames.length - 1, i));
+  radarFrames.index = k;
+  const f = frames[k];
+  radarLayer.setUrl(`${radarFrames.host}${f.path}/512/{z}/{x}/{y}/2/1_1.png`);
+  const t = new Date(f.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const lab = $('radarFrameTime');
+  if (lab) lab.textContent = 'Khung ' + (k + 1) + '/' + frames.length + ' · ' + t + ' (ICT)';
+  const sl = $('radarFrameSlider');
+  if (sl) sl.value = k;
+}
+
+function radarPlay(on) {
+  if (radarTimer) { clearInterval(radarTimer); radarTimer = 0; }
+  const b = $('radarPlay');
+  if (b) b.textContent = on ? '⏸ Tạm dừng radar' : '▶ Phát radar';
+  if (!on || !radarFrames || radarFrames.frames.length < 2) return;
+  // 550 ms/khung: khung quá khứ của RainViewer cách nhau 10 phút, nên phát ở
+  // tốc độ này là xấp xỉ thời gian thật — xem được diễn biến mưa như video.
+  radarTimer = setInterval(() => {
+    const n = radarFrames.frames.length;
+    radarShowFrame((radarFrames.index + 1) % n);
+  }, 550);
+}
+
+function initRadarControls() {
+  const b = $('radarPlay');
+  if (b) b.onclick = () => radarPlay(!radarTimer);
+  const s = $('radarFrameSlider');
+  if (s) {
+    s.oninput = () => { radarPlay(false); radarShowFrame(+s.value); };
+  }
+  const loop = $('radarLoop');
+  if (loop) loop.onchange = () => { radarFrames && (radarFrames.loop = loop.checked); };
+  if (radarFrames) {
+    const s2 = $('radarFrameSlider');
+    if (s2) s2.max = radarFrames.frames.length - 1;
+    radarShowFrame(radarFrames.index);
+  }
+}
+
+/* ---------- bản đồ dự báo động: trường + hạt gió ---------- */
+
+/*
+ * Vì sao làm được mà không cần máy chủ riêng
+ * ------------------------------------------
+ * Windy tự phục vụ lưới ECMWF/GFS 0,25°. Ở đây không có gì như vậy, nhưng
+ * Open-Meteo nhận nhiều toạ độ trong MỘT request: 169 điểm lưới 13×13, 48 giờ,
+ * 5 biến về khoảng 390 KB và 1,5 giây. Như vậy cả bản đồ động chỉ tốn đúng một
+ * lượt gọi, thay vì 169 lượt — vượt xa hạn mức miễn phí nếu gọi từng điểm.
+ *
+ * Lưới thưa 0,35° (~39 km) nhìn thô trên giấy nhưng không thấy trên màn hình:
+ * trường được vẽ lên một canvas nhỏ đúng bằng số ô rồi phóng to, trình duyệt
+ * nội suy. Hạt gió cũng đi qua cùng phép nội suy đó.
+ */
+const ANIM_N = 13;                 // số ô mỗi cạnh
+const ANIM_STEP = 0.35;            // độ, ~39 km
+const ANIM_FIELDS = 'wind_speed_10m,wind_direction_10m,temperature_2m,cloud_cover,precipitation';
+
+// Thang màu ghép từ nhiều điểm dừng, chọn để tương phản trên nền bản đồ vệ tinh.
+const ANIM_SCALES = {
+  wind: {
+    label: 'Gió 10 m', unit: 'km/h', kind: 'wind', field: 'wind_speed_10m',
+    stops: [[0, '#3d7ea6'], [10, '#4fa3c7'], [20, '#57c0a8'], [32, '#8fd14f'],
+            [45, '#f2c14e'], [60, '#f08a3c'], [80, '#e05252'], [110, '#c026d3']],
+  },
+  temp: {
+    label: 'Nhiệt độ 2 m', unit: '°C', kind: 'scalar', field: 'temperature_2m',
+    stops: [[12, '#2b4a8b'], [18, '#3f8fc4'], [23, '#63c2a8'], [28, '#f2d24e'],
+            [33, '#ef8a3c'], [38, '#d93838'], [42, '#a01f5a']],
+  },
+  cloud: {
+    label: 'Phủ mây', unit: '%', kind: 'scalar', field: 'cloud_cover',
+    stops: [[0, '#101a2c'], [15, '#2c3f55'], [40, '#5b6f85'], [70, '#8d9bad'], [100, '#e8eef5']],
+  },
+  rain: {
+    label: 'Lượng mưa', unit: 'mm/giờ', kind: 'scalar', field: 'precipitation',
+    stops: [[0.02, '#1b3a6b'], [0.5, '#2f7fc1'], [2, '#43b06b'], [5, '#e8d24a'],
+            [10, '#e0762f'], [20, '#d03434'], [40, '#b03ad0']],
+  },
+};
+
+const anim = {
+  on: false, playing: false, varKey: 'wind', hour: 0,
+  grid: null, cache: new Map(), timer: 0, raf: 0, last: 0,
+};
+
+function hexToRgb(h) {
+  const n = parseInt(h.slice(1), 16);
+  return h.length > 7
+    ? [(n >> 16) & 255, (n >> 8) & 255, n & 255, (n >>> 24) & 255]
+    : [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+}
+
+/** Màu của một giá trị, nội suy giữa các điểm dừng. */
+function animColour(stops, v) {
+  if (!E.finite(v)) return null;
+  if (v <= stops[0][0]) return hexToRgb(stops[0][1]);
+  const last = stops[stops.length - 1];
+  if (v >= last[0]) return hexToRgb(last[1]);
+  for (let i = 1; i < stops.length; i++) {
+    if (v > stops[i][0]) continue;
+    const [v0, c0] = stops[i - 1], [v1, c1] = stops[i];
+    const f = (v - v0) / (v1 - v0);
+    const a = hexToRgb(c0), b = hexToRgb(c1);
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * f), Math.round(a[1] + (b[1] - a[1]) * f),
+      Math.round(a[2] + (b[2] - a[2]) * f), Math.round(a[3] + (b[3] - a[3]) * f),
+    ];
+  }
+  return hexToRgb(last[1]);
+}
+
+/** Tải lưới dự báo bằng MỘT request cho cả 5 biến, cache theo vị trí. */
+/**
+ * Tải lưới dự báo cho cả 5 biến.
+ *
+ * Open-Meteo chấp nhận nhiều toạ độ trong một request nhưng có trần: 64 điểm là
+ * đã trả 503 "service overloaded", còn 169 điểm lúc đầu thì lọt. Trần này
+ * không công bố và còn phụ thuộc tải máy chủ lúc đó, nên không thể dựa vào nó.
+ * Cách chắc chắn là chia nhỏ: mỗi request 43 điểm, thử lại khi gặp 503, và bỏ
+ * ô nào thất bại thay vì làm hỏng cả bản đồ. Với 169 điểm là 4 request, tức
+ * vẫn rẻ hơn nhiều so với gọi từng điểm — 169 lượt.
+ */
+const ANIM_CHUNK = 43;
+
+async function fetchAnimChunk(lats, lons, attempt = 0) {
+  const u = new URLSearchParams({
+    latitude: lats.join(','), longitude: lons.join(','),
+    hourly: ANIM_FIELDS, forecast_days: '2',
+    wind_speed_unit: 'kmh', timezone: 'Asia/Ho_Chi_Minh',
+  });
+  try {
+    const j = await api('https://api.open-meteo.com/v1/forecast', u);
+    return Array.isArray(j) ? j : null;
+  } catch (e) {
+    // Quá tải là tạm thời, thử lại vài lần. Hết cách thì bỏ khối này.
+    if (attempt < 3 && /overload|503|429|timeout/i.test(e.message)) {
+      await new Promise(r => setTimeout(r, 1200 * (attempt + 1) ** 2));
+      return fetchAnimChunk(lats, lons, attempt + 1);
+    }
+    return null;
+  }
+}
+
+/**
+ * Lưới dự báo bám theo vị trí và mức phóng của BẢN ĐỒ, không theo địa điểm đang
+ * chọn. Bản đồ radar có thể đang đặt tâm ở vị trí bão cách nửa vệ tinh, nếu
+ * lưới cứ bám "place" thì nó nằm ngoài khung và người dùng thấy một ô trống.
+ *
+ * Trải độ được chọn từ bề rộng đang nhìn thấy, rồi kẹp lại: nhỏ hơn 1,5° thì
+ * bản đồ vô nghĩa, lớn hơn 14° thì ô 0,35° quá thưa và trường sẽ sai.
+ */
+function animSpanForView() {
+  if (!radarMap) return ANIM_STEP;
+  const b = radarMap.getBounds();
+  const spanLon = Math.abs(b.getEast() - b.getWest());
+  const spanLat = Math.abs(b.getNorth() - b.getSouth());
+  const span = Math.min(14, Math.max(1.5, Math.max(spanLon, spanLat) * 0.8));
+  return span / (ANIM_N - 1);
+}
+
+function animCenterForView() {
+  if (!radarMap) return { lat: place.lat, lon: place.lon };
+  const c = radarMap.getCenter();
+  return { lat: c.lat, lon: c.lng ?? c.lon };
+}
+
+async function fetchAnimChunk(lats, lons, attempt = 0) {
+  const u = new URLSearchParams({
+    latitude: lats.join(','), longitude: lons.join(','),
+    hourly: ANIM_FIELDS, forecast_days: '2',
+    wind_speed_unit: 'kmh', timezone: 'Asia/Ho_Chi_Minh',
+  });
+  try {
+    const j = await api('https://api.open-meteo.com/v1/forecast', u);
+    return Array.isArray(j) ? j : null;
+  } catch (e) {
+    // Quá tải là tạm thời, thử lại vài lần. Hết cách thì bỏ khối này.
+    if (attempt < 3 && /overload|503|429|timeout/i.test(e.message)) {
+      await new Promise(r => setTimeout(r, 1200 * (attempt + 1) ** 2));
+      return fetchAnimChunk(lats, lons, attempt + 1);
+    }
+    return null;
+  }
+}
+
+async function fetchAnimGrid(step, center) {
+  const key = center.lat.toFixed(2) + ',' + center.lon.toFixed(2) + ',' + step.toFixed(3);
+  if (anim.cache.has(key)) return anim.cache.get(key);
+  const lat0 = center.lat - ((ANIM_N - 1) * step) / 2;
+  const lon0 = center.lon - ((ANIM_N - 1) * step) / 2;
+  const lats = [], lons = [];
+  for (let j = 0; j < ANIM_N; j++) {
+    for (let i = 0; i < ANIM_N; i++) {
+      lats.push((lat0 + j * step).toFixed(3));
+      lons.push((lon0 + i * step).toFixed(3));
+    }
+  }
+  const pts = [];
+  for (let s = 0; s < lats.length; s += ANIM_CHUNK) {
+    const part = await fetchAnimChunk(lats.slice(s, s + ANIM_CHUNK), lons.slice(s, s + ANIM_CHUNK));
+    if (part) pts.push(...part);
+    // Nghỉ nhẹ giữa các khối: dồn request là một trong các nguyên nhân 503.
+    if (s + ANIM_CHUNK < lats.length) await new Promise(r => setTimeout(r, 500));
+  }
+  if (pts.length < ANIM_N * ANIM_N * 0.6) {
+    throw new Error('chỉ tải được ' + pts.length + '/' + (ANIM_N * ANIM_N) + ' điểm');
+  }
+  const hours = pts[0].hourly.time;
+  // Chuẩn hoá về [hàng][cột][giờ]; API trả về theo thứ tự hàng-chính.
+  const grid = { lat0, lon0, n: ANIM_N, step, hours, fields: {}, missing: ANIM_N * ANIM_N - pts.length };
+  for (const f of ANIM_FIELDS.split(',')) {
+    const flat = new Float32Array(ANIM_N * ANIM_N * hours.length).fill(NaN);
+    for (let idx = 0; idx < pts.length; idx++) {
+      const row = (idx / ANIM_N) | 0, col = idx % ANIM_N;
+      const arr = pts[idx].hourly[f];
+      if (!arr || row >= ANIM_N) continue;
+      const base = (row * ANIM_N + col) * hours.length;
+      for (let h = 0; h < hours.length; h++) flat[base + h] = arr[h] == null ? NaN : arr[h];
+    }
+    grid.fields[f] = flat;
+  }
+  anim.cache.set(key, grid);
+  return grid;
+}
+
+/** Nội suy song tuyến tại vị trí tương đối fx, fy trong lưới (0..1). */
+function animSample(grid, field, fx, fy, hour) {
+  const flat = grid.fields[field];
+  if (!flat) return null;
+  const n = grid.n, nh = grid.hours.length;
+  const gx = Math.max(0, Math.min(1, fx)) * (n - 1);
+  const gy = Math.max(0, Math.min(1, fy)) * (n - 1);
+  const x0 = Math.floor(gx), y0 = Math.floor(gy);
+  const x1 = Math.min(n - 1, x0 + 1), y1 = Math.min(n - 1, y0 + 1);
+  const tx = gx - x0, ty = gy - y0;
+  const at = (x, y) => flat[(y * n + x) * nh + hour];
+  const v = [at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)];
+  if (!v.every(E.finite)) return null;
+  return (v[0] * (1 - tx) + v[1] * tx) * (1 - ty) + (v[2] * (1 - tx) + v[3] * tx) * ty;
+}
+
+/** Hạt gió: vị trí lưu dạng tỉ lệ 0..1 trong lưới để không phụ thuộc mức zoom. */
+const animParticles = [];
+const ANIM_PARTICLE_COUNT = 800;
+
+function animSeedParticles() {
+  animParticles.length = 0;
+  for (let i = 0; i < ANIM_PARTICLE_COUNT; i++) {
+    animParticles.push({ x: Math.random(), y: Math.random(), age: 1 + Math.random() * 80 });
+  }
+}
+
+/*
+ * Vẽ một khung hình.
+ *
+ * Canvas trường nhỏ đúng bằng số ô lưới, đổ màu từng ô, rồi phóng to lên khung
+ * bản đồ với bộ lọc nội suy. Cách này nhanh hơn vẽ từng pixel hàng trăm lần và
+ * mịn hơn hẳn so với nối các ô thành hình chữ nhật.
+ */
+function animDrawField(grid, hour) {
+  const spec = ANIM_SCALES[anim.varKey];
+  const n = grid.n, nh = grid.hours.length;
+  const small = anim.fieldCanvas;
+  if (!small || small.width !== n || small.height !== n) { small.width = n; small.height = n; }
+  const ctx = small.getContext('2d');
+  const img = ctx.createImageData(n, n);
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const v = grid.fields[spec.field][(row * n + col) * nh + hour];
+      const c = animColour(spec.stops, v);
+      const o = (row * n + col) * 4;
+      if (!c) { img.data[o + 3] = 0; continue; }
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = c[3];
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Góc trên-trái trên màn hình là BẮC-TÂY, không phải nam-tây: trục y của
+  // Leaflet đi xuống khi vĩ độ tăng. Lấy nhầm góc sẽ ra chiều cao âm.
+  const nw = radarMap.latLngToContainerPoint([
+    grid.lat0 + (n - 1) * grid.step, grid.lon0,
+  ]);
+  const se = radarMap.latLngToContainerPoint([grid.lat0, grid.lon0 + (n - 1) * grid.step]);
+  // Bản đồ có thể chưa đo được (tab đang ẩn lúc khởi tạo), khiến toạ độ là NaN.
+  // Canvas không nhận kích thước NaN nên sẽ giữ nguyên 300x150 và im lặng —
+  // vì vậy phải chặn trước và báo lại thay vì vẽ sai.
+  if (!E.finite(nw.x) || !E.finite(nw.y) || !E.finite(se.x) || !E.finite(se.y)) {
+    const m = $('animMsg');
+    if (m) m.textContent = 'Chưa đo được khung bản đồ — hãy phóng to hoặc kéo bản đồ rồi thử lại.';
+    return;
+  }
+  const w = Math.max(1, Math.round(se.x - nw.x)), h = Math.max(1, Math.round(se.y - nw.y));
+  const view = $('animCanvas');
+  if (view.width !== w || view.height !== h) { view.width = w; view.height = h; }
+  const vctx = view.getContext('2d');
+  vctx.globalCompositeOperation = 'source-over';
+  vctx.clearRect(0, 0, w, h);
+  vctx.imageSmoothingEnabled = true;
+  vctx.imageSmoothingQuality = 'high';
+  // Phóng ra thêm nửa ô mỗi cạnh để mép lưới không hở khi kéo bản đồ.
+  vctx.drawImage(small, 0, 0, n, n, -1, -1, w + 2, h + 2);
+  animPlaceCanvas();
+}
+
+/** Toạ độ pixel của một hạt gió. */
+function animParticlePoint(grid, p) {
+  const n = grid.n;
+  return radarMap.latLngToContainerPoint([
+    grid.lat0 + p.y * (n - 1) * grid.step,
+    grid.lon0 + p.x * (n - 1) * grid.step,
+  ]);
+}
+
+function animDrawParticles(grid, hour, dt) {
+  const view = $('animCanvas');
+  if (!view.width) return;
+  const ctx = view.getContext('2d');
+  // Xoá dần bằng chính canvas đang vẽ để hạt để lại vệt, thay vì xoá sạch mỗi
+  // khung hình. Ràng buộc: phải chừa lớp trường đã vẽ, nên phần này chạy trên
+  // một canvas riêng nằm trên canvas trường.
+  const pc = $('animParticles');
+  const pctx = pc.getContext('2d');
+  if (pc.width !== view.width || pc.height !== view.height) {
+    pc.width = view.width; pc.height = view.height;
+  }
+  pctx.globalCompositeOperation = 'destination-out';
+  pctx.fillStyle = 'rgba(0,0,0,0.16)';
+  pctx.fillRect(0, 0, pc.width, pc.height);
+  pctx.globalCompositeOperation = 'source-over';
+
+  const step = Math.max(0.35, dt / 16);
+  for (const p of animParticles) {
+    const spd = animSample(grid, 'wind_speed_10m', p.x, p.y, hour);
+    const dir = animSample(grid, 'wind_direction_10m', p.x, p.y, hour);
+    p.age -= 1;
+    if (p.age <= 0 || spd == null || dir == null) {
+      p.x = Math.random(); p.y = Math.random();
+      p.age = 30 + Math.random() * 90;
+      continue;
+    }
+    // Hướng khí tượng là hướng gió thổi TỪ, nên vectơ chuyển động là phủ định.
+    // Một ô lưới ~39 km, nên 1 km/h đổi thành 39/(n-1) độ mỗi giờ.
+    const rad = dir * Math.PI / 180;
+    const degPerHour = spd * ((grid.step * 111) / (grid.n - 1)) / 3600;
+    p.x -= Math.sin(rad) * degPerHour * step * 5;
+    p.y -= Math.cos(rad) * degPerHour * step * 5;
+    if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) {
+      p.x = Math.random(); p.y = Math.random();
+      p.age = 30 + Math.random() * 90;
+      continue;
+    }
+    const pt = animParticlePoint(grid, p);
+    const len = 2 + spd * 0.1;
+    pctx.strokeStyle = spd > 45 ? 'rgba(255,214,140,0.8)' : 'rgba(255,255,255,0.6)';
+    pctx.lineWidth = 1.2;
+    pctx.beginPath();
+    pctx.moveTo(pt.x, pt.y);
+    pctx.lineTo(pt.x + Math.sin(rad) * len, pt.y - Math.cos(rad) * len);
+    pctx.stroke();
+  }
+}
+
+function animTick(now) {
+  if (!anim.on || !anim.grid) return;
+  const dt = anim.last ? Math.min(90, now - anim.last) : 16;
+  anim.last = now;
+  if (anim.dirty || now - (anim.drawnAt || 0) > 300) {
+    anim.dirty = false;
+    anim.drawnAt = now;
+    animDrawField(anim.grid, anim.hour);
+    animUpdateTimeLabel();
+  }
+  animDrawParticles(anim.grid, anim.hour, dt);
+  anim.raf = requestAnimationFrame(animTick);
+}
+
+/* ---------- điều khiển bản đồ động ---------- */
+
+function animUpdateTimeLabel() {
+  const g = anim.grid;
+  const el = $('animTime');
+  if (el && g) {
+    const d = new Date(g.hours[anim.hour] + ':00+07:00');
+    el.textContent = d.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+  const sl = $('animSlider');
+  if (sl && +sl.value !== anim.hour) sl.value = anim.hour;
+}
+
+function animLegendHtml() {
+  const spec = ANIM_SCALES[anim.varKey];
+  const s = spec.stops;
+  const bar = s.map((st, i) => `${st[1]} ${(i / (s.length - 1)) * 100}%`).join(', ');
+  const ticks = s.map((st, i) => (i % 2 === 0 || i === s.length - 1
+    ? `<span style="left:${(i / (s.length - 1)) * 100}%">${st[0]}</span>` : '')).join('');
+  return `<strong>${spec.label} (${spec.unit})</strong>`
+    + `<span class="anim-ramp" style="background:linear-gradient(90deg,${bar})">${ticks}</span>`
+    + `<span class="tiny">Lưới ${ANIM_N}×${ANIM_N} điểm, mỗi ô ${anim.grid ? Math.round(anim.grid.step * 111) : '—'} km. `
+    + `Ảnh phẳng được nội suy bằng trình duyệt cho mượt — nó không thêm thông tin nào ngoài dữ liệu gốc. `
+    + `Cùng dữ liệu này đã được hiệu chỉnh và kiểm thử ở tab Kiểm thử; bản đồ là bản hiển thị trực tiếp của dự báo tại điểm bạn chọn.</span>`;
+}
+
+function animPlaceCanvas() {
+  if (!anim.grid || !radarMap) return;
+  const g = anim.grid;
+  const nw = radarMap.latLngToContainerPoint([g.lat0 + (g.n - 1) * g.step, g.lon0]);
+  for (const id of ['animCanvas', 'animParticles']) {
+    const c = $(id);
+    if (c) { c.style.left = nw.x + 'px'; c.style.top = nw.y + 'px'; }
+  }
+}
+
+/**
+ * Lấy lại lưới cho vùng đang xem, sau một khoảng chờ ngắn.
+ *
+ * Người dùng kéo bản đồ liên tục sẽ tạo ra hàng chục lần gọi nếu tải ngay, và
+ * mỗi lần là 4 request. Chờ 1,2 giây im lặng rồi mới tải: đủ để khung hình
+ * ngừng chạy, và vẫn nhận ra người dùng đã kết thúc thao tác.
+ */
+function animRefreshSoon() {
+  if (!anim.on) return;
+  if (anim.refreshTimer) clearTimeout(anim.refreshTimer);
+  anim.refreshTimer = setTimeout(() => animRefreshNow(), 1200);
+}
+
+let animRefreshBusy = false;
+async function animRefreshNow() {
+  if (!anim.on || animRefreshBusy) return;
+  const step = animSpanForView();
+  const center = animCenterForView();
+  const cur = anim.grid;
+  // Đã đúng vùng và đúng mức thưa thì khỏi tải lại.
+  if (cur && Math.abs(cur.step - step) < step * 0.2
+    && Math.abs(cur.lat0 + ((cur.n - 1) * cur.step) / 2 - center.lat) < step * 0.8
+    && Math.abs(cur.lon0 + ((cur.n - 1) * cur.step) / 2 - center.lon) < step * 0.8) return;
+  animRefreshBusy = true;
+  const msg = $('animMsg');
+  if (msg) msg.textContent = 'Đang cập nhật lưới cho vùng đang xem…';
+  try {
+    const g = await fetchAnimGrid(step, center);
+    if (!anim.on) return;
+    anim.grid = g;
+    anim.dirty = true;
+    const lg = $('animLegend');
+    if (lg) lg.innerHTML = animLegendHtml();
+    animSeedParticles();
+    animPlaceCanvas();
+    if (msg) msg.textContent = '';
+  } catch (e) {
+    // Giữ nguyên lưới cũ: hơn là mất hẳn lớp động vì một lần tải hỏng.
+    if (msg) msg.textContent = 'Giữ lưới cũ: ' + e.message;
+  } finally {
+    animRefreshBusy = false;
+  }
+}
+
+/** Bật/tắt lớp động và gắn mọi sự kiện bản đồ cần thiết. */
+async function setAnimLayer(on) {
+  const msg = $('animMsg');
+  const btn = $('animToggle');
+  if (!on) {
+    anim.on = false;
+    animPlay(false);
+    if (anim.raf) cancelAnimationFrame(anim.raf);
+    anim.timer = anim.raf = 0;
+    for (const id of ['animCanvas', 'animParticles']) {
+      const c = $(id);
+      if (c) c.style.display = 'none';
+    }
+    if ($('animControls')) $('animControls').hidden = true;
+    if (btn) { btn.textContent = 'Bật bản đồ dự báo động'; btn.classList.add('primary'); btn.classList.remove('secondary'); }
+    return;
+  }
+  if (!radarMap) { if (msg) msg.textContent = 'Hãy mở bản đồ radar trước khi bật lớp động.'; return; }
+  if (msg) msg.textContent = 'Đang tải lưới dự báo ' + (ANIM_N * ANIM_N) + ' điểm…';
+  try {
+    anim.grid = await fetchAnimGrid(animSpanForView(), animCenterForView());
+  } catch (e) {
+    if (msg) msg.textContent = 'Không tải được lưới dự báo: ' + e.message;
+    return;
+  }
+  if (!anim.fieldCanvas) anim.fieldCanvas = document.createElement('canvas');
+  // Mở ra từ giờ hiện tại chứ không phải 00:00: nếu không, lớp động bắt đầu bằng
+  // dữ liệu của đêm qua rồi chạy tới hiện tại, tức là mở đúng phần đã qua.
+  const nowKey = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 13);
+  const idx = anim.grid.hours.findIndex(h => h.slice(0, 13) >= nowKey);
+  anim.hour = idx >= 0 ? idx : 0;
+  anim.on = true;
+  anim.dirty = true;
+
+  for (const id of ['animCanvas', 'animParticles']) {
+    const c = $(id);
+    if (c) c.style.display = 'block';
+  }
+  $('animControls').hidden = false;
+  if (btn) { btn.textContent = 'Tắt bản đồ dự báo động'; btn.classList.remove('secondary'); btn.classList.add('primary'); }
+  const sl = $('animSlider');
+  if (sl) { sl.max = anim.grid.hours.length - 1; sl.value = anim.hour; }
+  if ($('animLegend')) $('animLegend').innerHTML = animLegendHtml();
+  animUpdateTimeLabel();
+  if (msg) msg.textContent = '';
+  if (!anim.bound) {
+    anim.bound = true;
+    radarMap.on('move zoom resize', () => { anim.dirty = true; animPlaceCanvas(); animRefreshSoon(); });
+  }
+  animSeedParticles();
+  if (anim.raf) cancelAnimationFrame(anim.raf);
+  anim.last = 0;
+  // Vẽ ngay một khung thay vì chờ requestAnimationFrame đầu tiên: nếu tab đang
+  // chạy nền, trình duyệt hãm nhịp khung hình và người dùng sẽ thấy lớp động
+  // "không bật" dù nó đã bật. Hạt gió vẫn cần vòng lặp, nhưng trường thì không.
+  animDrawField(anim.grid, anim.hour);
+  // Vẽ vài chục vòng hạt gió ngay. Ở một tab chạy nền, trình duyệt có thể không
+  // bắn requestAnimationFrame cho tới khi người dùng nhìn vào; nếu chỉ dựa vào
+  // vòng lặp, lớp gió sẽ trông như không có gì.
+  for (let i = 0; i < 40; i++) animDrawParticles(anim.grid, anim.hour, 16);
+  anim.raf = requestAnimationFrame(animTick);
+}
+
+function animPlay(on) {
+  anim.playing = on;
+  const b = $('animPlay');
+  if (b) b.textContent = on ? '⏸ Tạm dừng' : '▶ Phát';
+  if (anim.timer) { clearInterval(anim.timer); anim.timer = 0; }
+  if (!on || !anim.grid) return;
+  anim.timer = setInterval(() => {
+    anim.hour = (anim.hour + 1) % anim.grid.hours.length;
+    anim.dirty = true;
+    // Cập nhật nhãn ngay ở đây, không chờ khung hình vẽ kế tiếp: tab chạy nền
+    // bị trình duyệt hãm nhịp requestAnimationFrame, còn setInterval thì không.
+    animUpdateTimeLabel();
+  }, 700);
+}
+
+function animSetVar(key) {
+  if (!ANIM_SCALES[key]) return;
+  anim.varKey = key;
+  anim.dirty = true;
+  const sel = $('animVar');
+  if (sel) sel.value = key;
+  if ($('animLegend')) $('animLegend').innerHTML = animLegendHtml();
+  if (!anim.on) setAnimLayer(true);
+}
 /* ---------- tropical cyclones (GDACS positions, not our track forecast) ---------- */
 
 const ALERT_RANK = { Green: 1, Orange: 2, Red: 3 };
@@ -6347,11 +6964,22 @@ async function loadAlerts() {
 function initDisasterTab() {
   renderDisasterChips();
   initDisasterSearch();
+  initAnimControls();
   $('disasterRefreshRadar').onclick = () => {
     if (radarMap) { try { radarMap.remove(); } catch (e) { /* bỏ qua */ } radarMap = null; }
-    document.getElementById('radarMap').innerHTML = '<div id="radarMsg" class="notice">Đang tải lại radar…</div>';
+    // Phải dựng lại đúng cấu trúc như lúc đầu: hai canvas của lớp động nằm
+    // trong khung bản đồ, và innerHTML = '' sẽ xoá mất chúng.
+    document.getElementById('radarMap').innerHTML = '<div id="radarMsg" class="notice">Đang tải lại radar…</div>'
+      + '<canvas id="animCanvas" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>'
+      + '<canvas id="animParticles" class="anim-canvas" aria-hidden="true" style="display:none"></canvas>';
     radarInitialized = false;
+    anim.grid = null; anim.cache.clear();
+    const wantAnim = anim.on;
+    anim.bound = false;
     initRadar();
+    // Gọi lại nốt các handler vì các phần tử vừa bị thay.
+    initAnimControls();
+    if (wantAnim) initRadar().then(() => setAnimLayer(true));
   };
   $('disasterLoadAlerts').onclick = () => { loadAlerts(); loadTropicalCyclones(); };
   // Bat/tat lop khong khi tren ban do radar.
@@ -6372,6 +7000,21 @@ function initDisasterTab() {
       }
     }
   };
+}
+
+/** Gắn bộ điều khiển của lớp bản đồ dự báo động. */
+function initAnimControls() {
+  const t = $('animToggle');
+  if (t) t.onclick = () => setAnimLayer(!anim.on);
+  const p = $('animPlay');
+  if (p) p.onclick = () => animPlay(!anim.playing);
+  const v = $('animVar');
+  if (v) v.onchange = () => animSetVar(v.value);
+  const s = $('animSlider');
+  if (s) {
+    s.oninput = () => { anim.hour = +s.value; anim.dirty = true; animUpdateTimeLabel(); };
+    s.onchange = () => animPlay(false);
+  }
 }
 
 /**

@@ -1058,6 +1058,38 @@ check('giao diện: có nút GPS, lớp khối khí trên radar và bảng mực
   assert.ok(/Object\.keys\(h\)\.find\(k => k === base \|\| k\.startsWith\(base \+ '_'\)\)/.test(app),
     'phải tìm key đúng trong phản hồi thay vì ghép chuỗi cố định');
 });
+check('bản đồ dự báo động và radar hoạt hình có mặt, có nguồn và giới hạn rõ', () => {
+  for (const id of ['animCanvas', 'animParticles', 'animToggle', 'animPlay', 'animVar',
+                    'animSlider', 'animTime', 'animLegend', 'animControls',
+                    'radarPlay', 'radarFrameSlider', 'radarFrameTime']) {
+    assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);
+  }
+  // Hai canvas phải nằm trong khung bản đồ, không phải chồng lên trang.
+  const mapDiv = html.match(/id="radarMap"[^>]*>([\s\S]*?)<\/div>\s*<div class="anim-bar"/);
+  assert.ok(mapDiv, 'canvas phải nằm trong khung bản đồ');
+  assert.ok(mapDiv[1].includes('id="animCanvas"') && mapDiv[1].includes('id="animParticles"'),
+    'hai canvas phải nằm trong #radarMap');
+  // Chú giải màu phải nói rõ độ thưa của lưới, vì đó là giới hạn thật.
+  assert.ok(/mỗi ô/.test(html) && /km\./.test(html), 'phải ghi rõ mỗi ô lưới bao nhiêu km');
+  assert.ok(/không phải mô hình dự báo/.test(html), 'phải phân biệt radar quan sát với dự báo');
+  // Các nút phải được nối, không để trơ. Mã nguồn hay lấy phần tử vào biến
+  // trước khi gán, nên kiểm tra phải chấp nhận cả hai cách viết.
+  const wired = (id, action) => {
+    const re = new RegExp("\\$\\('" + id + "'\\)[\\s\\S]{0,120}?onclick\\s*=[\\s\\S]{0,120}?" + action);
+    assert.ok(re.test(html), id + ' chưa được nối sự kiện ' + action);
+  };
+  wired('animToggle', 'setAnimLayer');
+  wired('animPlay', 'animPlay');
+  wired('radarPlay', 'radarPlay');
+  // Lưới phải chia khối: Open-Meteo trả 503 khi nhận quá nhiều toạ độ một lần.
+  assert.ok(/ANIM_CHUNK/.test(html), 'phải chia lưới thành khối khi tải');
+  assert.ok(/ANIM_CHUNK = (\d+)/.test(html) && +html.match(/ANIM_CHUNK = (\d+)/)[1] <= 50,
+    'khối phải nhỏ, Open-Meteo từ chối trên 64 toạ độ');
+  // Lưới phải bám theo bản đồ, không bám địa điểm: bản đồ radar có thể đang
+  // đặt tâm ở vị trí bão cách xa.
+  assert.ok(/animCenterForView/.test(html), 'lưới phải lấy tâm từ bản đồ');
+  assert.ok(/anim.grid\.step/.test(html), 'phải dùng bước lưới của lưới đang vẽ');
+});
 check('lớp khối khí và sông có mặt, ghi rõ giới hạn nguồn số liệu', () => {
   for (const id of ['airMassBox', 'trajectory', 'trajNote', 'riverList', 'riverChart', 'massMeta', 'tcList', 'tcMeta']) {
     assert.ok(html.includes(`id="${id}"`), 'thiếu phần tử: ' + id);

@@ -2037,6 +2037,77 @@
     return round(q0 * Math.pow(H / a, 1 / b), 1);
   }
 
+  /*
+   * Reference flood levels, read off the river's own record.
+   *
+   * Vietnam's official alarm levels (báo động 1/2/3) are set station by station
+   * by the hydrometeorological service from a real rating curve, and no open
+   * source publishes them. A fixed metre value invented per river would be a
+   * guess, so nothing here is fixed: every threshold is a percentile of the
+   * discharge series actually downloaded for that cell. A river with a violent
+   * history therefore gets higher thresholds than a placid one, which is the
+   * whole point of reading them off the record.
+   *
+   * With one year of data the upper percentiles rest on very few days, so the
+   * sample count is reported next to each threshold and the UI labels all of
+   * this as reference levels, never as official alarms.
+   */
+  const FLOOD_BANDS = [
+    { at: 0.90, level: 0, key: 'canh_bao', label: 'Cảnh báo', tone: 'low' },
+    { at: 0.95, level: 1, key: 'bd1', label: 'Báo động 1', tone: 'mid' },
+    { at: 0.98, level: 2, key: 'bd2', label: 'Báo động 2', tone: 'high' },
+    { at: 0.995, level: 3, key: 'bd3', label: 'Báo động 3', tone: 'severe' },
+  ];
+
+  function quantileSorted(s, p) {
+    if (!s.length) return null;
+    return s[clamp(Math.floor(p * (s.length - 1)), 0, s.length - 1)];
+  }
+
+  function floodLevels(opts) {
+    const { history, qNow, qForecast, rating } = opts;
+    const s = (history || []).filter(v => finite(v) && v >= 0).sort((a, b) => a - b);
+    if (s.length < 30) return null;
+    const thresholds = FLOOD_BANDS.map(b => {
+      const q = quantileSorted(s, b.at);
+      return {
+        ...b,
+        q: round(q, 1),
+        days: Math.max(1, s.length - Math.round(b.at * (s.length - 1))),
+        h: rating ? nominalStage(q, rating.a, rating.b, rating.q0) : null,
+      };
+    });
+    // Share of the record at or below the current value: the plain-language form
+    // of the same fact ("cao thứ 40 trong 365 ngày").
+    let below = 0;
+    if (finite(qNow)) {
+      for (const v of s) { if (v <= qNow) below++; else break; }
+    }
+    const bandOf = v => {
+      if (!finite(v)) return null;
+      let hit = null;
+      for (const b of thresholds) if (v >= b.q) hit = b;
+      return hit;
+    };
+    // Peak of the forecast window, and the band it would reach.
+    const fc = (qForecast || []).filter(v => finite(v));
+    let peak = null, peakIn = null;
+    for (let i = 0; i < fc.length; i++) if (peak === null || fc[i] > peak) { peak = fc[i]; peakIn = i; }
+    return {
+      n: s.length,
+      min: round(s[0], 1), max: round(s[s.length - 1], 1),
+      mean: round(meanS(s), 1), p50: round(quantileSorted(s, 0.5), 1),
+      thresholds,
+      qNow: finite(qNow) ? round(qNow, 1) : null,
+      percent: finite(qNow) ? round(below / s.length, 3) : null,
+      rankFromTop: finite(qNow) ? s.length - below : null,
+      now: bandOf(qNow),
+      peakQ: peak === null ? null : round(peak, 1),
+      peakInDays: peakIn,
+      peakBand: bandOf(peak),
+    };
+  }
+
   /** Wind barbs: line length and head count encode speed, rotation shows direction. */
   function windBarb(speedKmh, dirDeg) {
     if (!finite(speedKmh) || !finite(dirDeg)) return null;
@@ -2063,6 +2134,6 @@
     airMassGrid, classifyCell, nominalStage, stageToQ, windBarb,
     evaluate, hourOf, dayOfYear, regimeKey, REGIME_EDGES,
     thickness, toUms, offsetLatLon, trajectory, bearingDeg, nearestOnTrack,
-    airMass, frontalPassage, riverRisk,
+    airMass, frontalPassage, riverRisk, floodLevels, FLOOD_BANDS,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

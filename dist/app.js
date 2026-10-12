@@ -531,60 +531,123 @@ async function pLimit(items, limit, worker) {
   return out;
 }
 
-async function fetchRivers() {
-  const offs = [-0.2, -0.1, 0, 0.1, 0.2];
+/*
+ * GloFAS trả về con sông lớn nhất trong ô lưới 5 km. Để biết ĐẦY ĐỦ những gì
+ * nằm trong bán kính 10 km phải quét ô lưới chứ không thể chỉ hỏi tại điểm đứng:
+ * một ô trả về sông thì không có nghĩa các ô bên cạnh không có.
+ *
+ * Lưới GloFAS là 5 km, nên các mẫu cách nhau 5 km là đủ để chắc chắn không bỏ
+ * sót ô nào: một ô có tâm trong 10 km luôn chứa ít nhất một điểm mẫu. Lưới
+ * 5x5 phủ tới 10 km mỗi phía, và mọi ô trả về số liệu đều được giữ lại — không
+ * cắt còn "12 con gần nhất" như trước, vì cắt bỏ là mất sông.
+ */
+const RIVER_RADIUS_KM = 10;
+const RIVER_DEG = RIVER_RADIUS_KM / 111.2;      // ~0.09°
+const RIVER_STEP = 5 / 111.2;                   // đúng bước lưới GloFAS
+
+const floodCellKey = c => c.lat.toFixed(3) + ',' + c.lon.toFixed(3);
+
+/** Một lần quét: trả về danh sách ô lưới có sông, đã loại trùng. */
+async function scanRiverCells() {
+  const offs = [];
+  for (let k = -2; k <= 2; k++) offs.push(k * RIVER_STEP);
   const jobs = [];
   for (const dy of offs) for (const dx of offs) jobs.push({ lat: place.lat + dy, lon: place.lon + dx });
-  const out = await pLimit(jobs, 4, async p => {
+  const seen = await pLimit(jobs, 6, async p => {
     const u = new URLSearchParams({
       latitude: p.lat.toFixed(4), longitude: p.lon.toFixed(4),
-      daily: 'river_discharge,river_discharge_median,river_discharge_p25,river_discharge_p75',
-      past_days: 30, forecast_days: 7,
+      daily: 'river_discharge', forecast_days: 1,
     });
     const j = await api('https://flood-api.open-meteo.com/v1/flood', u);
-    const q = j.daily.river_discharge || [];
-    const median = j.daily.river_discharge_median || [];
-    const last = q.length - 1;
-    if (last < 0 || !E.finite(q[last])) return null;
-    return {
-      cell: { lat: j.latitude, lon: j.longitude },
-      km: E.round(E.distanceKm(place, { lat: j.latitude, lon: j.longitude }), 1),
-      time: j.daily.time,
-      q,
-      median,
-      p25: j.daily.river_discharge_p25 || [],
-      p75: j.daily.river_discharge_p75 || [],
-      qMedian: E.finite(median[last]) ? median[last] : q[last],
-    };
+    const q = j.daily?.river_discharge || [];
+    if (!q.some(v => E.finite(v) && v > 0)) return null;   // ô không có sông
+    return { lat: j.latitude, lon: j.longitude };
   });
   const byCell = new Map();
-  for (const r of out) {
-    if (!r) continue;
-    const key = r.cell.lat.toFixed(2) + ',' + r.cell.lon.toFixed(2);
-    if (!byCell.has(key)) byCell.set(key, r);
+  for (const c of seen) {
+    if (!c) continue;
+    const km = E.distanceKm(place, c);
+    if (km > RIVER_RADIUS_KM) continue;
+    byCell.set(floodCellKey(c), { cell: c, km: E.round(km, 1) });
   }
-  const list = [...byCell.values()].sort((a, b) => a.km - b.km);
-  // Chỉ hiện tối đa 12 con gần nhất; con lớn nhất được đánh dấu để phân biệt
-  // sông chính với kênh nhỏ.
-  const top = list.slice(0, 12);
-  // Danh dau con lon nhat TRONG SO DANG HIEN, vi chi do lai 12 con gan nhat.
+  return [...byCell.values()].sort((a, b) => a.km - b.km);
+}
+
+/** Tải lịch sử 12 tháng + 7 ngày dự báo cho MỘT ô đã biết là có sông. */
+async function fetchRiverSeries(entry) {
+  const u = new URLSearchParams({
+    latitude: entry.cell.lat.toFixed(4), longitude: entry.cell.lon.toFixed(4),
+    daily: 'river_discharge,river_discharge_median,river_discharge_p25,river_discharge_p75',
+    past_days: 365, forecast_days: 7,
+  });
+  const j = await api('https://flood-api.open-meteo.com/v1/flood', u);
+  const time = j.daily.time || [];
+  const q = j.daily.river_discharge || [];
+  const median = j.daily.river_discharge_median || [];
+  const p25 = j.daily.river_discharge_p25 || [];
+  const p75 = j.daily.river_discharge_p75 || [];
+  const today = new Date().toISOString().slice(0, 10);
+  // Chỉ những ngày có số mới tính được "hôm nay" và "đỉnh 7 ngày tới".
+  let iToday = time.lastIndexOf(today);
+  if (iToday < 0) iToday = time.findIndex(t => t >= today);
+  if (iToday < 0 || iToday >= time.length || !E.finite(q[iToday])) return null;
+  return {
+    ...entry,
+    time,
+    q,
+    median,
+    p25,
+    p75,
+    iToday,
+    qToday: q[iToday],
+    qMedianToday: E.finite(median[iToday]) ? median[iToday] : q[iToday],
+    p25Today: p25[iToday], p75Today: p75[iToday],
+    // Lịch sử: mọi ngày trước hôm nay có số liệu.
+    history: q.slice(0, iToday).filter(v => E.finite(v)),
+    forecast: q.slice(iToday).filter(v => E.finite(v)),
+  };
+}
+
+async function fetchRivers() {
+  const cells = await scanRiverCells();
+  if (!cells.length) return [];
+  const out = await pLimit(cells, 3, entry => fetchRiverSeries(entry));
+  const list = out.filter(Boolean).sort((a, b) => a.km - b.km);
+  // Đánh dấu con lớn nhất để phân biệt sông chính với kênh nhỏ.
   let biggest = null;
-  for (const r of top) {
-    const v = r.median?.[r.median.length - 1] ?? r.q[r.q.length - 1];
+  for (const r of list) {
+    const v = r.qMedianToday;
     if (E.finite(v) && (!biggest || v > biggest.v)) biggest = { v, km: r.km };
   }
-  return top.map(r => ({ ...r, isLargest: !!biggest && Math.abs(r.km - biggest.km) < 0.05 }));
+  return list.map(r => ({
+    ...r,
+    isLargest: !!biggest && Math.abs(r.km - biggest.km) < 0.05,
+    levels: E.floodLevels({
+      history: r.history,
+      qNow: r.qMedianToday,
+      qForecast: r.forecast.slice(1),
+      rating: ratingFor(r.qMedianToday),
+    }),
+  }));
 }
 
 function riverRiskOf(r) {
-  const last = r.q.length - 1;
-  const recentWindow = r.q.slice(0, Math.max(1, r.q.length - 8));
+  const recentWindow = (r.history || []).slice(-30);
   const recent = E.meanS(recentWindow);
   return E.riverRisk({
-    q: r.median?.[last] ?? r.q[last],
-    qP25: r.p25?.[last], qP75: r.p75?.[last],
+    q: r.qMedianToday ?? r.qToday,
+    qP25: r.p25Today, qP75: r.p75Today,
     recent,
   });
+}
+
+/** Nhãn cảnh báo ngắn gọn cho một con sông. */
+function riverAlert(r) {
+  const L = r.levels;
+  if (!L) return null;
+  const now = L.now;
+  const peak = L.peakBand;
+  return { level: now, peak, outranked: !!(peak && (!now || peak.level > now.level)) };
 }
 
 function renderRivers() {

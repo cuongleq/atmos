@@ -3055,29 +3055,47 @@ function initRadarControls() {
   }
 }
 
-/* ---------- bản đồ dự báo động: trường + hạt gió ---------- */
+/* ---------- bản đồ dự báo động ---------- */
 
 /*
- * Vì sao làm được mà không cần máy chủ riêng
- * ------------------------------------------
- * Windy tự phục vụ lưới ECMWF/GFS 0,25°. Ở đây không có gì như vậy, nhưng
- * Open-Meteo nhận nhiều toạ độ trong MỘT request: 169 điểm lưới 13×13, 48 giờ,
- * 5 biến về khoảng 390 KB và 1,5 giây. Như vậy cả bản đồ động chỉ tốn đúng một
- * lượt gọi, thay vì 169 lượt — vượt xa hạn mức miễn phí nếu gọi từng điểm.
+/*
+ * Ngân sách dữ liệu — điều đã học được sau khi tự làm cạn hạn mức API
+ * ============================================================
  *
- * Lưới thưa 0,35° (~39 km) nhìn thô trên giấy nhưng không thấy trên màn hình:
- * trường được vẽ lên một canvas nhỏ đúng bằng số ô rồi phóng to, trình duyệt
- * nội suy. Hạt gió cũng đi qua cùng phép nội suy đó.
+ * Trần của Open-Meteo không tính theo SỐ REQUEST mà theo SỐ GIỜ DỮ LIỆU. Một lưới
+ * 441 điểm × 48 giờ × 5 biến là hơn 100 nghìn giờ-dữ liệu trong một lần bấm nút,
+ * và một lượt thử như vậy làm cạn hạn mức của cả giờ. Nếu không tính từ trước,
+ * người dùng sẽ gặp 429 và tưởng trang hỏng.
+ *
+ * Vì vậy:
+ *  1. Tải ĐÚNG BIẾN ĐANG XEM, không tải cả 5 biến cùng lúc. Gió cần 2 biến
+ *     (tốc độ và hướng), các biến khác chỉ cần một.
+ *  2. 36 giờ thay vì 48: ngày đầu là thứ người dùng thật sự xem.
+ *  3. Tối đa 225 điểm mỗi lần tải. Thêm điểm thì tốn hạn mức mà không thấy rõ,
+ *     vì canvas vẫn mịn nhờ nội suy.
+ *  4. Kéo bản đồ không tải lại nếu lưới còn phủ được vùng đang xem.
  */
-const ANIM_N = 13;                 // số ô mỗi cạnh
-const ANIM_STEP = 0.35;            // độ, ~39 km
+const ANIM_HOURS = 36;
+const ANIM_CHUNK = 140;          // dưới trần 144 toạ độ, đo thực nghiệm
+const ANIM_NATIVE = 0.25;        // độ — không xin mịn hơn mô hình gốc
+
 const ANIM_FIELDS = 'wind_speed_10m,wind_direction_10m,temperature_2m,cloud_cover,precipitation';
 
-// Thang màu ghép từ nhiều điểm dừng, chọn để tương phản trên nền bản đồ vệ tinh.
+// Biến nào cần những biến nào. Gió cần hai; các biến khác chỉ cần chính nó.
+const ANIM_NEEDS = {
+  wind: ['wind_speed_10m', 'wind_direction_10m'],
+  temp: ['temperature_2m'],
+  cloud: ['cloud_cover'],
+  rain: ['precipitation'],
+};
+
+/*
+ * Thang màu ghép từ nhiều điểm dừng, chọn để tương phản trên nền bản đồ vệ tinh.
+ */
 const ANIM_SCALES = {
   wind: {
     label: 'Gió 10 m', unit: 'km/h', kind: 'wind', field: 'wind_speed_10m',
-    stops: [[0, '#3d7ea6'], [10, '#4fa3c7'], [20, '#57c0a8'], [32, '#8fd14f'],
+    stops: [[0, '#2f6f9f'], [10, '#4fa3c7'], [20, '#57c0a8'], [32, '#8fd14f'],
             [45, '#f2c14e'], [60, '#f08a3c'], [80, '#e05252'], [110, '#c026d3']],
   },
   temp: {
@@ -3094,11 +3112,6 @@ const ANIM_SCALES = {
     stops: [[0.02, '#1b3a6b'], [0.5, '#2f7fc1'], [2, '#43b06b'], [5, '#e8d24a'],
             [10, '#e0762f'], [20, '#d03434'], [40, '#b03ad0']],
   },
-};
-
-const anim = {
-  on: false, playing: false, varKey: 'wind', hour: 0,
-  grid: null, cache: new Map(), timer: 0, raf: 0, last: 0,
 };
 
 function hexToRgb(h) {
@@ -3127,53 +3140,36 @@ function animColour(stops, v) {
   return hexToRgb(last[1]);
 }
 
-/** Tải lưới dự báo bằng MỘT request cho cả 5 biến, cache theo vị trí. */
-/**
- * Tải lưới dự báo cho cả 5 biến.
- *
- * Open-Meteo chấp nhận nhiều toạ độ trong một request nhưng có trần: 64 điểm là
- * đã trả 503 "service overloaded", còn 169 điểm lúc đầu thì lọt. Trần này
- * không công bố và còn phụ thuộc tải máy chủ lúc đó, nên không thể dựa vào nó.
- * Cách chắc chắn là chia nhỏ: mỗi request 43 điểm, thử lại khi gặp 503, và bỏ
- * ô nào thất bại thay vì làm hỏng cả bản đồ. Với 169 điểm là 4 request, tức
- * vẫn rẻ hơn nhiều so với gọi từng điểm — 169 lượt.
- */
-const ANIM_CHUNK = 43;
+const anim = {
+  on: false, playing: false, varKey: 'wind', hour: 0,
+  grid: null, cache: new Map(), timer: 0, raf: 0, last: 0,
+  particlesOn: true, contours: false, dragging: false,
+};
 
-async function fetchAnimChunk(lats, lons, attempt = 0) {
-  const u = new URLSearchParams({
-    latitude: lats.join(','), longitude: lons.join(','),
-    hourly: ANIM_FIELDS, forecast_days: '2',
-    wind_speed_unit: 'kmh', timezone: 'Asia/Ho_Chi_Minh',
-  });
-  try {
-    const j = await api('https://api.open-meteo.com/v1/forecast', u);
-    return Array.isArray(j) ? j : null;
-  } catch (e) {
-    // Quá tải là tạm thời, thử lại vài lần. Hết cách thì bỏ khối này.
-    if (attempt < 3 && /overload|503|429|timeout/i.test(e.message)) {
-      await new Promise(r => setTimeout(r, 1200 * (attempt + 1) ** 2));
-      return fetchAnimChunk(lats, lons, attempt + 1);
-    }
-    return null;
-  }
-}
-
-/**
- * Lưới dự báo bám theo vị trí và mức phóng của BẢN ĐỒ, không theo địa điểm đang
- * chọn. Bản đồ radar có thể đang đặt tâm ở vị trí bão cách nửa vệ tinh, nếu
- * lưới cứ bám "place" thì nó nằm ngoài khung và người dùng thấy một ô trống.
- *
- * Trải độ được chọn từ bề rộng đang nhìn thấy, rồi kẹp lại: nhỏ hơn 1,5° thì
- * bản đồ vô nghĩa, lớn hơn 14° thì ô 0,35° quá thưa và trường sẽ sai.
+/*
+ * Lưới phủ rộng hơn khung nhìn một chút. Không có phần dư này thì chỉ cần kéo bản đồ
+ * vài pixel là mép lưới lộ ra, và người dùng thấy một đường viền rỗng chạy ngang.
  */
-function animSpanForView() {
-  if (!radarMap) return ANIM_STEP;
+const ANIM_MARGIN = 1.25;
+
+/*
+ * Mức phóng quyết định vùng phủ và độ thưa, theo đúng thứ dữ liệu cho phép:
+ * thu nhỏ xa thì ô phải thưa để số điểm vẫn nằm trong ngân sách; phóng to thì
+ * vùng phủ nhỏ lại, ô giữ nguyên 0,25° vì không có gì chi tiết hơn để hiện.
+ */
+const ANIM_TIERS = [
+  { maxSpan: 1e9, step: 1.0, n: 15 },    // nhìn cả khu vực
+  { maxSpan: 14, step: 0.5, n: 15 },     // vùng rộng, ô 0,5°
+  { maxSpan: 7, step: 0.25, n: 15 },     // vùng vừa, ô 0,25°
+  { maxSpan: 3.5, step: 0.25, n: 13 },   // phóng to, vùng nhỏ, ô vẫn 0,25°
+];
+
+function animTierForView() {
+  if (!radarMap) return ANIM_TIERS[2];
   const b = radarMap.getBounds();
-  const spanLon = Math.abs(b.getEast() - b.getWest());
-  const spanLat = Math.abs(b.getNorth() - b.getSouth());
-  const span = Math.min(14, Math.max(1.5, Math.max(spanLon, spanLat) * 0.8));
-  return span / (ANIM_N - 1);
+  const span = Math.max(Math.abs(b.getEast() - b.getWest()), Math.abs(b.getNorth() - b.getSouth()));
+  for (const t of ANIM_TIERS) if (span * ANIM_MARGIN <= t.maxSpan) return t;
+  return ANIM_TIERS[ANIM_TIERS.length - 1];
 }
 
 function animCenterForView() {
@@ -3182,63 +3178,119 @@ function animCenterForView() {
   return { lat: c.lat, lon: c.lng ?? c.lon };
 }
 
-async function fetchAnimChunk(lats, lons, attempt = 0) {
+/** Lưới hiện tại còn phủ được vùng đang xem không — quyết định có tải lại không. */
+function animGridCoversView(grid, grow) {
+  if (!grid || !radarMap) return false;
+  const g = grow == null ? 0.15 : grow;
+  const b = radarMap.getBounds();
+  const west = grid.lon0 - (grid.n - 1) * grid.step * g;
+  const east = grid.lon0 + (grid.n - 1) * grid.step * (1 + g);
+  const south = grid.lat0 - (grid.n - 1) * grid.step * g;
+  const north = grid.lat0 + (grid.n - 1) * grid.step * (1 + g);
+  return b.getWest() >= west && b.getEast() <= east
+    && b.getSouth() >= south && b.getNorth() <= north;
+}
+
+const animCacheKey = (center, tier, fields) =>
+  center.lat.toFixed(2) + ',' + center.lon.toFixed(2) + ',' + tier.step.toFixed(3) + ',' + fields.join('+');
+
+async function fetchAnimChunk(lats, lons, fields, attempt = 0) {
   const u = new URLSearchParams({
     latitude: lats.join(','), longitude: lons.join(','),
-    hourly: ANIM_FIELDS, forecast_days: '2',
+    hourly: fields.join(','), forecast_days: '2',
     wind_speed_unit: 'kmh', timezone: 'Asia/Ho_Chi_Minh',
   });
   try {
     const j = await api('https://api.open-meteo.com/v1/forecast', u);
     return Array.isArray(j) ? j : null;
   } catch (e) {
-    // Quá tải là tạm thời, thử lại vài lần. Hết cách thì bỏ khối này.
-    if (attempt < 3 && /overload|503|429|timeout/i.test(e.message)) {
-      await new Promise(r => setTimeout(r, 1200 * (attempt + 1) ** 2));
-      return fetchAnimChunk(lats, lons, attempt + 1);
+    // Hạn mức miễn phí tính theo giờ DỮ LIỆU và cạn trong một khoảng thời gian,
+    // nên lần thử sau phải chờ đủ lâu mới có cơ hội.
+    if (/hourly api request limit|429/i.test(e.message)) {
+      const err = new Error('đã hết hạn mức lượt gọi của Open-Meteo trong giờ này');
+      err.quota = true;
+      throw err;
+    }
+    if (attempt < 4 && /overload|503|502|timeout/i.test(e.message)) {
+      await new Promise(r => setTimeout(r, [1500, 4000, 9000, 16000][attempt]));
+      return fetchAnimChunk(lats, lons, fields, attempt + 1);
     }
     return null;
   }
 }
 
-async function fetchAnimGrid(step, center) {
-  const key = center.lat.toFixed(2) + ',' + center.lon.toFixed(2) + ',' + step.toFixed(3);
+/** Tải MỘT biến (hoặc hai biến ghép nhau) cho một vùng, chia thành khối 140 điểm. */
+async function fetchAnimGrid(varKey, tier, center, onProgress) {
+  const fields = ANIM_NEEDS[varKey] || [ANIM_SCALES[varKey].field];
+  const key = animCacheKey(center, tier, fields);
   if (anim.cache.has(key)) return anim.cache.get(key);
-  const lat0 = center.lat - ((ANIM_N - 1) * step) / 2;
-  const lon0 = center.lon - ((ANIM_N - 1) * step) / 2;
+  const n = tier.n, step = tier.step;
+  const lat0 = center.lat - ((n - 1) * step) / 2;
+  const lon0 = center.lon - ((n - 1) * step) / 2;
   const lats = [], lons = [];
-  for (let j = 0; j < ANIM_N; j++) {
-    for (let i = 0; i < ANIM_N; i++) {
-      lats.push((lat0 + j * step).toFixed(3));
-      lons.push((lon0 + i * step).toFixed(3));
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      lats.push((lat0 + j * step).toFixed(4));
+      lons.push((lon0 + i * step).toFixed(4));
     }
   }
+  const total = Math.ceil(lats.length / ANIM_CHUNK);
   const pts = [];
+  let done = 0;
   for (let s = 0; s < lats.length; s += ANIM_CHUNK) {
-    const part = await fetchAnimChunk(lats.slice(s, s + ANIM_CHUNK), lons.slice(s, s + ANIM_CHUNK));
+    const part = await fetchAnimChunk(lats.slice(s, s + ANIM_CHUNK), lons.slice(s, s + ANIM_CHUNK), fields);
     if (part) pts.push(...part);
-    // Nghỉ nhẹ giữa các khối: dồn request là một trong các nguyên nhân 503.
-    if (s + ANIM_CHUNK < lats.length) await new Promise(r => setTimeout(r, 500));
+    done++;
+    if (onProgress) onProgress(done, total);
+    if (s + ANIM_CHUNK < lats.length) await new Promise(r => setTimeout(r, 600));
   }
-  if (pts.length < ANIM_N * ANIM_N * 0.6) {
-    throw new Error('chỉ tải được ' + pts.length + '/' + (ANIM_N * ANIM_N) + ' điểm');
+  if (pts.length < n * n * 0.6) {
+    throw new Error('chỉ tải được ' + pts.length + '/' + (n * n) + ' điểm');
   }
-  const hours = pts[0].hourly.time;
-  // Chuẩn hoá về [hàng][cột][giờ]; API trả về theo thứ tự hàng-chính.
-  const grid = { lat0, lon0, n: ANIM_N, step, hours, fields: {}, missing: ANIM_N * ANIM_N - pts.length };
-  for (const f of ANIM_FIELDS.split(',')) {
-    const flat = new Float32Array(ANIM_N * ANIM_N * hours.length).fill(NaN);
+  const hours = pts[0].hourly.time.slice(0, ANIM_HOURS);
+  const grid = {
+    lat0, lon0, n, step, hours, fields: {}, varKey,
+    missing: n * n - pts.length, km: Math.round(step * 111),
+  };
+  for (const f of fields) {
+    const flat = new Float32Array(n * n * hours.length).fill(NaN);
     for (let idx = 0; idx < pts.length; idx++) {
-      const row = (idx / ANIM_N) | 0, col = idx % ANIM_N;
+      const row = (idx / n) | 0, col = idx % n;
       const arr = pts[idx].hourly[f];
-      if (!arr || row >= ANIM_N) continue;
-      const base = (row * ANIM_N + col) * hours.length;
+      if (!arr || row >= n) continue;
+      const base = (row * n + col) * hours.length;
       for (let h = 0; h < hours.length; h++) flat[base + h] = arr[h] == null ? NaN : arr[h];
     }
     grid.fields[f] = flat;
   }
   anim.cache.set(key, grid);
   return grid;
+}
+
+/**
+ * Tải lưới, lùi dần về bậc thưa hơn nếu bị từ chối.
+ *
+ * Hạn mức là theo giờ và không công bố, nên một lần lỗi có thể chỉ là hơi sớm.
+ * Thay vì để người dùng nhìn thông báo lỗi, thử bậc nhỏ hơn: ô thưa hơi thì ít điểm
+ * phải tải và nhiều khả năng lọt. Báo rõ là đã lùi bậc, vì lưới thưa là dữ liệu ít
+ * hơn và người đọc phải biết.
+ */
+async function fetchAnimGridWithFallback(varKey, tier, center, onProgress) {
+  let i = ANIM_TIERS.indexOf(tier);
+  if (i < 0) i = ANIM_TIERS.length - 1;
+  const start = i;
+  let lastErr = null;
+  for (; i >= 0; i--) {
+    try {
+      const g = await fetchAnimGrid(varKey, ANIM_TIERS[i], center, onProgress);
+      if (i < start) { g.fallbackFrom = ANIM_TIERS[start].step; g.fallbackTo = ANIM_TIERS[i].step; }
+      return g;
+    } catch (e) {
+      lastErr = e;
+      if (e.quota) throw e;   // hết hạn mức thì lùi bậc cũng vô ích
+    }
+  }
+  throw lastErr || new Error('không tải được lưới nào');
 }
 
 /** Nội suy song tuyến tại vị trí tương đối fx, fy trong lưới (0..1). */
@@ -3257,17 +3309,44 @@ function animSample(grid, field, fx, fy, hour) {
   return (v[0] * (1 - tx) + v[1] * tx) * (1 - ty) + (v[2] * (1 - tx) + v[3] * tx) * ty;
 }
 
-/** Hạt gió: vị trí lưu dạng tỉ lệ 0..1 trong lưới để không phụ thuộc mức zoom. */
+/**
+ * Hạt gió: vị trí lưu dạng tỉ lệ 0..1 trong lưới để không phụ thuộc mức phóng.
+ * Số hạt theo tỉ lệ vùng đang nhìn thấy, và hạt được sinh lại ngay trong khung
+ * nhìn thấy — nếu không, phóng to thì hạt nằm ngoài màn hình và bản đồ trống dần,
+ * đúng lúc người dùng muốn nhìn kỹ nhất.
+ */
 const animParticles = [];
-const ANIM_PARTICLE_COUNT = 800;
+const ANIM_PARTICLE_BASE = 1100;
 
-function animSeedParticles() {
-  animParticles.length = 0;
-  for (let i = 0; i < ANIM_PARTICLE_COUNT; i++) {
-    animParticles.push({ x: Math.random(), y: Math.random(), age: 1 + Math.random() * 80 });
-  }
+function animVisibleFraction(grid) {
+  if (!radarMap) return { x0: 0, y0: 0, x1: 1, y1: 1, area: 1 };
+  const b = radarMap.getBounds();
+  const span = (grid.n - 1) * grid.step;
+  const fx0 = (b.getWest() - grid.lon0) / span, fx1 = (b.getEast() - grid.lon0) / span;
+  const fy0 = (b.getSouth() - grid.lat0) / span, fy1 = (b.getNorth() - grid.lat0) / span;
+  const x0 = Math.max(0, Math.min(1, fx0)), x1 = Math.max(0, Math.min(1, fx1));
+  const y0 = Math.max(0, Math.min(1, fy0)), y1 = Math.max(0, Math.min(1, fy1));
+  return { x0, y0, x1, y1, area: Math.max(0, (x1 - x0) * (y1 - y0)) };
 }
 
+function animSpawn(p, vis) {
+  p.x = vis.x0 + Math.random() * (vis.x1 - vis.x0);
+  p.y = vis.y0 + Math.random() * (vis.y1 - vis.y0);
+  p.age = 20 + Math.random() * 110;
+  p.fade = 0;
+}
+
+function animSeedParticles(grid) {
+  if (!grid) return;
+  const vis = animVisibleFraction(grid);
+  const target = Math.max(120, Math.round(ANIM_PARTICLE_BASE * Math.min(1, vis.area * 1.6)));
+  animParticles.length = 0;
+  for (let i = 0; i < target; i++) {
+    const p = { x: 0, y: 0, age: 0, fade: 0 };
+    animSpawn(p, vis);
+    animParticles.push(p);
+  }
+}
 /*
  * Vẽ một khung hình.
  *
@@ -3277,6 +3356,12 @@ function animSeedParticles() {
  */
 function animDrawField(grid, hour) {
   const spec = ANIM_SCALES[anim.varKey];
+  if (!grid.fields[spec.field]) {
+    const m = $('animMsg');
+    if (m) m.textContent = 'Lưới hiện tại chưa có biến ' + spec.label.toLowerCase() + ' — đang tải lại…';
+    animRefreshNow(true);
+    return;
+  }
   const n = grid.n, nh = grid.hours.length;
   const small = anim.fieldCanvas;
   if (!small || small.width !== n || small.height !== n) { small.width = n; small.height = n; }
@@ -3295,12 +3380,10 @@ function animDrawField(grid, hour) {
 
   // Góc trên-trái trên màn hình là BẮC-TÂY, không phải nam-tây: trục y của
   // Leaflet đi xuống khi vĩ độ tăng. Lấy nhầm góc sẽ ra chiều cao âm.
-  const nw = radarMap.latLngToContainerPoint([
-    grid.lat0 + (n - 1) * grid.step, grid.lon0,
-  ]);
+  const nw = radarMap.latLngToContainerPoint([grid.lat0 + (n - 1) * grid.step, grid.lon0]);
   const se = radarMap.latLngToContainerPoint([grid.lat0, grid.lon0 + (n - 1) * grid.step]);
   // Bản đồ có thể chưa đo được (tab đang ẩn lúc khởi tạo), khiến toạ độ là NaN.
-  // Canvas không nhận kích thước NaN nên sẽ giữ nguyên 300x150 và im lặng —
+  // Canvas không nhận kích thước NaN nên sẽ giữ nguyên 300×150 và im lặng —
   // vì vậy phải chặn trước và báo lại thay vì vẽ sai.
   if (!E.finite(nw.x) || !E.finite(nw.y) || !E.finite(se.x) || !E.finite(se.y)) {
     const m = $('animMsg');
@@ -3317,7 +3400,80 @@ function animDrawField(grid, hour) {
   vctx.imageSmoothingQuality = 'high';
   // Phóng ra thêm nửa ô mỗi cạnh để mép lưới không hở khi kéo bản đồ.
   vctx.drawImage(small, 0, 0, n, n, -1, -1, w + 2, h + 2);
+  animDrawContours(ctx, small, grid, spec, hour);
   animPlaceCanvas();
+}
+
+/*
+ * Đường đồng mức.
+ *
+ * Vẽ trên canvas nhỏ rồi phóng to cùng ảnh phẳng. Không có bước này thì màu
+ * trơn trông như một tấm ảnh nhuộm và người đọc không có neo định lý — chỉ có
+ * "tốt/xấu", không có "ở đâu". Ở mức phóng thấp màu tương phản kém nên bỏ qua,
+ * vì đường mảnh trên nền tối chỉ làm nhoè thêm.
+ */
+function animDrawContours(ctx, small, grid, spec, hour) {
+  if (anim.contours) return;
+  if ((radarMap?.getZoom() || 0) < 5) return;
+  const n = grid.n, nh = grid.hours.length;
+  const values = [];
+  let lo = Infinity, hi = -Infinity;
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const v = grid.fields[spec.field][(row * n + col) * nh + hour];
+      values.push(E.finite(v) ? v : null);
+      if (E.finite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    }
+  }
+  if (!(hi > lo)) return;
+  const levels = [];
+  const stepLv = (hi - lo) / 6;
+  for (let i = 1; i <= 6; i++) levels.push(lo + i * stepLv);
+
+  ctx.clearRect(0, 0, small.width, small.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = Math.max(0.08, 1 / n * 1.2);
+  const at = (row, col) => values[row * n + col];
+  // Nội suy cạnh theo tỉ lệ giá trị để đường cắt đúng chỗ, không bị lệch nửa ô.
+  const edge = (a, b) => {
+    if (a == null || b == null || a === b) return null;
+    return null;   // điểm cắt được xử lý bên dưới
+  };
+  for (let row = 0; row < n - 1; row++) {
+    for (let col = 0; col < n - 1; col++) {
+      const a = at(row, col), b = at(row, col + 1), c = at(row + 1, col + 1), d = at(row + 1, col);
+      if (a == null || b == null || c == null || d == null) continue;
+      const x0 = col, x1 = col + 1, y0 = row, y1 = row + 1;
+      for (const lv of levels) {
+        const pts = [];
+        const cut = (va, vb, px, py) => {
+          if ((va < lv && vb >= lv) || (vb < lv && va >= lv)) {
+            const t = (lv - va) / (vb - va);
+            pts.push([px + (qb - pa) * t, py + (rb - ra) * t]);
+          }
+        };
+        let pa, pb, ra, rb;
+        pa = x0; pb = x1; ra = y0; rb = y0; cut(a, b, pa, pb, ra, rb);
+        pa = x1; pb = x1; ra = y0; rb = y1; cut(b, c, pa, pb, ra, rb);
+        pa = x1; pb = x0; ra = y1; rb = y1; cut(c, d, pa, pb, ra, rb);
+        pa = x0; pb = x0; ra = y1; rb = y0; cut(d, a, pa, pb, ra, rb);
+        if (pts.length < 2) continue;
+        ctx.beginPath();
+        // Đoạn ngắn nhất giữa các điểm cắt là cạnh đường đồng mức trong ô.
+        let best = null, bestLen = Infinity;
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            const dd = (pts[i][0] - pts[j][0]) ** 2 + (pts[i][1] - pts[j][1]) ** 2;
+            if (dd < bestLen) { bestLen = dd; best = [pts[i], pts[j]]; }
+          }
+        }
+        if (!best || bestLen > 2) continue;
+        ctx.moveTo(best[0][0], best[0][1]);
+        ctx.lineTo(best[1][0], best[1][1]);
+        ctx.stroke();
+      }
+    }
+  }
 }
 
 /** Toạ độ pixel của một hạt gió. */
@@ -3330,47 +3486,167 @@ function animParticlePoint(grid, p) {
 }
 
 function animDrawParticles(grid, hour, dt) {
+  if (!anim.particlesOn) return;
   const view = $('animCanvas');
-  if (!view.width) return;
-  const ctx = view.getContext('2d');
-  // Xoá dần bằng chính canvas đang vẽ để hạt để lại vệt, thay vì xoá sạch mỗi
-  // khung hình. Ràng buộc: phải chừa lớp trường đã vẽ, nên phần này chạy trên
-  // một canvas riêng nằm trên canvas trường.
   const pc = $('animParticles');
+  if (!view.width) return;
   const pctx = pc.getContext('2d');
   if (pc.width !== view.width || pc.height !== view.height) {
     pc.width = view.width; pc.height = view.height;
   }
+  // Xoá dần bằng chính canvas đang vẽ để hạt để lại vệt, thay vì xoá sạch mỗi
+  // khung hình. Canvas hạt nằm riêng nên không xoá lớp trường đã vẽ.
   pctx.globalCompositeOperation = 'destination-out';
-  pctx.fillStyle = 'rgba(0,0,0,0.16)';
+  pctx.fillStyle = 'rgba(0,0,0,0.18)';
   pctx.fillRect(0, 0, pc.width, pc.height);
   pctx.globalCompositeOperation = 'source-over';
 
+  const vis = animVisibleFraction(grid);
   const step = Math.max(0.35, dt / 16);
+  const stops = ANIM_SCALES.wind.stops;
   for (const p of animParticles) {
+    if (!grid.fields.wind_speed_10m || !grid.fields.wind_direction_10m) return;
     const spd = animSample(grid, 'wind_speed_10m', p.x, p.y, hour);
     const dir = animSample(grid, 'wind_direction_10m', p.x, p.y, hour);
     p.age -= 1;
-    if (p.age <= 0 || spd == null || dir == null) {
-      p.x = Math.random(); p.y = Math.random();
-      p.age = 30 + Math.random() * 90;
+    // Ra khỏi khung nhìn thấy hoặc hết tuổi thì sinh lại ngay trong khung.
+    if (p.age <= 0 || spd == null || dir == null
+      || p.x < vis.x0 || p.x > vis.x1 || p.y < vis.y0 || p.y > vis.y1) {
+      animSpawn(p, vis);
       continue;
     }
+    p.fade = Math.min(1, p.fade + 0.06);
     // Hướng khí tượng là hướng gió thổi TỪ, nên vectơ chuyển động là phủ định.
-    // Một ô lưới ~39 km, nên 1 km/h đổi thành 39/(n-1) độ mỗi giờ.
     const rad = dir * Math.PI / 180;
     const degPerHour = spd * ((grid.step * 111) / (grid.n - 1)) / 3600;
     p.x -= Math.sin(rad) * degPerHour * step * 5;
     p.y -= Math.cos(rad) * degPerHour * step * 5;
-    if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) {
-      p.x = Math.random(); p.y = Math.random();
-      p.age = 30 + Math.random() * 90;
+
+    const pt = animParticlePoint(grid, p);
+    const len = 1.5 + spd * 0.13;
+    const c = animColour(stops, spd);
+    const alpha = 0.30 + 0.55 * p.fade;
+    pctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+    pctx.lineWidth = 1.1;
+    pctx.beginPath();
+    pctx.moveTo(pt.x, pt.y);
+    pctx.lineTo(pt.x + Math.sin(rad) * len, pt.y - Math.cos(rad) * len);
+    pctx.stroke();
+  }
+}
+function animDrawContours(ctx, small, grid, spec, hour) {
+  if (anim.contours) return;
+  if ((radarMap?.getZoom() || 0) < 5) return;
+  const n = grid.n, nh = grid.hours.length;
+  const at = (row, col) => {
+    if (row < 0 || col < 0 || row >= n || col >= n) return null;
+    const v = grid.fields[spec.field][(row * n + col) * nh + hour];
+    return E.finite(v) ? v : null;
+  };
+  // Chỉ cần biết giá trị nhỏ nhất và lớn nhất để chia mức.
+  let lo = Infinity, hi = -Infinity;
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const v = at(row, col);
+      if (v != null) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    }
+  }
+  if (!(hi > lo)) return;
+  const lv = [];
+  for (let i = 1; i <= 6; i++) lv.push(lo + ((hi - lo) * i) / 7);
+
+  ctx.clearRect(0, 0, small.width, small.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = Math.max(0.1, 1.2 / n);
+  ctx.beginPath();
+  // Cắt mỗi cạnh của ô, nội suy theo giá trị để đường đi đúng chỗ chứ không
+  // lệch nửa ô; mỗi ô chỉ nối cặp điểm gần nhất (trường hợp đơn giản của
+  // marching squares).
+  const edge = (va, vb, p0, p1, level, out) => {
+    if (va == null || vb == null || va === vb) return;
+    if ((va < level) === (vb < level)) return;
+    const t = (level - va) / (vb - va);
+    out.push([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t]);
+  };
+  for (let row = 0; row < n - 1; row++) {
+    for (let col = 0; col < n - 1; col++) {
+      const a = at(row, col), b = at(row, col + 1), c = at(row + 1, col + 1), d = at(row + 1, col);
+      if (a == null || b == null || c == null || d == null) continue;
+      const x = col, y = row;
+      for (const level of lv) {
+        const pts = [];
+        edge(a, b, [x, y], [x + 1, y], level, pts);
+        edge(b, c, [x + 1, y], [x + 1, y + 1], level, pts);
+        edge(c, d, [x + 1, y + 1], [x, y + 1], level, pts);
+        edge(d, a, [x, y + 1], [x, y], level, pts);
+        if (pts.length < 2) continue;
+        let best = null, bestLen = Infinity;
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            const dd = (pts[i][0] - pts[j][0]) ** 2 + (pts[i][1] - pts[j][1]) ** 2;
+            if (dd < bestLen) { bestLen = dd; best = [pts[i], pts[j]]; }
+          }
+        }
+        if (!best || bestLen > 1.6) continue;
+        ctx.moveTo(best[0][0], best[0][1]);
+        ctx.lineTo(best[1][0], best[1][1]);
+      }
+    }
+  }
+  ctx.stroke();
+}
+/*
+ * Toạ độ pixel của một hạt gió. */
+function animParticlePoint(grid, p) {
+  const n = grid.n;
+  return radarMap.latLngToContainerPoint([
+    grid.lat0 + p.y * (n - 1) * grid.step,
+    grid.lon0 + p.x * (n - 1) * grid.step,
+  ]);
+}
+
+function animDrawParticles(grid, hour, dt) {
+  if (!anim.particlesOn) return;
+  const view = $('animCanvas');
+  const pc = $('animParticles');
+  if (!view.width) return;
+  const pctx = pc.getContext('2d');
+  if (pc.width !== view.width || pc.height !== view.height) {
+    pc.width = view.width; pc.height = view.height;
+  }
+  // Xoá dần bằng chính canvas đang vẽ để hạt để lại vệt, thay vì xoá sạch mỗi
+  // khung hình. Canvas hạt nằm riêng nên không xoá lớp trường đã vẽ.
+  pctx.globalCompositeOperation = 'destination-out';
+  pctx.fillStyle = 'rgba(0,0,0,0.18)';
+  pctx.fillRect(0, 0, pc.width, pc.height);
+  pctx.globalCompositeOperation = 'source-over';
+
+  const vis = animVisibleFraction(grid);
+  const step = Math.max(0.35, dt / 16);
+  const stops = ANIM_SCALES.wind.stops;
+  for (const p of animParticles) {
+    const spd = animSample(grid, 'wind_speed_10m', p.x, p.y, hour);
+    const dir = animSample(grid, 'wind_direction_10m', p.x, p.y, hour);
+    p.age -= 1;
+    // Ra khỏi khung nhìn thấy hoặc hết tuổi thì sinh lại ngay trong khung.
+    if (p.age <= 0 || spd == null || dir == null
+      || p.x < vis.x0 || p.x > vis.x1 || p.y < vis.y0 || p.y > vis.y1) {
+      animSpawn(p, vis);
       continue;
     }
+    p.fade = Math.min(1, p.fade + 0.06);
+    // Hướng khí tượng là hướng gió thổi TỪ, nên vectơ chuyển động là phủ định.
+    const rad = dir * Math.PI / 180;
+    const degPerHour = spd * ((grid.step * 111) / (grid.n - 1)) / 3600;
+    p.x -= Math.sin(rad) * degPerHour * step * 5;
+    p.y -= Math.cos(rad) * degPerHour * step * 5;
+
     const pt = animParticlePoint(grid, p);
-    const len = 2 + spd * 0.1;
-    pctx.strokeStyle = spd > 45 ? 'rgba(255,214,140,0.8)' : 'rgba(255,255,255,0.6)';
-    pctx.lineWidth = 1.2;
+    const len = 1.5 + spd * 0.13;
+    const c = animColour(stops, spd);
+    const alpha = 0.30 + 0.55 * p.fade;
+    pctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+    pctx.lineWidth = 1.1;
     pctx.beginPath();
     pctx.moveTo(pt.x, pt.y);
     pctx.lineTo(pt.x + Math.sin(rad) * len, pt.y - Math.cos(rad) * len);
@@ -3378,6 +3654,55 @@ function animDrawParticles(grid, hour, dt) {
   }
 }
 
+/**
+ * Đọc giá trị tại điểm bấm trên bản đồ.
+ *
+ * Chỉ nội suy trên lưới đã tải. Ở ngoài phạm vi lưới thì nói rõ là ngoài phạm
+ * vi thay vì kéo giá trị ở mép ra — biểu diễn giá trị ở rìa như một số thật ở
+ * một điểm cách nửa trăm kilomet là sai.
+ */
+function animValueAt(containerPoint) {
+  const g = anim.grid;
+  if (!g) return null;
+  const ll = radarMap.containerPointToLatLng(containerPoint);
+  const span = (g.n - 1) * g.step;
+  const fx = (ll.lng - g.lon0) / span;
+  const fy = (ll.lat - g.lat0) / span;
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return { outside: true, lat: ll.lat, lon: ll.lng };
+  const spec = ANIM_SCALES[anim.varKey];
+  const hour = anim.hour;
+  const out = { outside: false, lat: ll.lat, lon: ll.lng, label: spec.label, unit: spec.unit };
+  if (anim.varKey === 'wind') {
+    const s = animSample(g, 'wind_speed_10m', fx, fy, hour);
+    const d = animSample(g, 'wind_direction_10m', fx, fy, hour);
+    if (s == null || d == null) return null;
+    out.value = `${E.round(s, 1)} km/h · hướng ${E.round(d, 0)}°`;
+    out.color = animColour(ANIM_SCALES.wind.stops, s);
+  } else {
+    if (!g.fields[spec.field]) return null;
+    const v = animSample(g, spec.field, fx, fy, hour);
+    if (v == null) return null;
+    out.value = `${E.round(v, 1)} ${spec.unit}`;
+    out.color = animColour(spec.stops, v);
+  }
+  return out;
+}
+
+function animShowReadout(containerPoint) {
+  const box = $('animReadout');
+  if (!box) return;
+  const r = animValueAt(containerPoint);
+  if (!r) { box.hidden = true; return; }
+  if (r.outside) {
+    box.hidden = false;
+    box.innerHTML = `<span class="tiny">Ngoài phạm vi lưới đã tải (${E.round(r.lat, 2)}°, ${E.round(r.lon, 2)}°). Kéo bản đồ để lưới tải theo vùng đang xem.</span>`;
+    return;
+  }
+  const [cr, cg, cb] = r.color;
+  box.hidden = false;
+  box.innerHTML = `<i style="background:rgb(${cr},${cg},${cb})"></i><strong>${esc(r.label)}:</strong> ${esc(r.value)}`
+    + `<span class="tiny"> @ ${E.round(r.lat, 2)}°, ${E.round(r.lon, 2)}° · ô lưới ${anim.grid.km} km</span>`;
+}
 function animTick(now) {
   if (!anim.on || !anim.grid) return;
   const dt = anim.last ? Math.min(90, now - anim.last) : 16;
@@ -3414,11 +3739,14 @@ function animLegendHtml() {
   const bar = s.map((st, i) => `${st[1]} ${(i / (s.length - 1)) * 100}%`).join(', ');
   const ticks = s.map((st, i) => (i % 2 === 0 || i === s.length - 1
     ? `<span style="left:${(i / (s.length - 1)) * 100}%">${st[0]}</span>` : '')).join('');
+  const g = anim.grid;
   return `<strong>${spec.label} (${spec.unit})</strong>`
     + `<span class="anim-ramp" style="background:linear-gradient(90deg,${bar})">${ticks}</span>`
-    + `<span class="tiny">Lưới ${ANIM_N}×${ANIM_N} điểm, mỗi ô ${anim.grid ? Math.round(anim.grid.step * 111) : '—'} km. `
-    + `Ảnh phẳng được nội suy bằng trình duyệt cho mượt — nó không thêm thông tin nào ngoài dữ liệu gốc. `
-    + `Cùng dữ liệu này đã được hiệu chỉnh và kiểm thử ở tab Kiểm thử; bản đồ là bản hiển thị trực tiếp của dự báo tại điểm bạn chọn.</span>`;
+    + `<span class="tiny">Lưới ${g ? g.n + '×' + g.n : '—'} điểm, mỗi ô ${g ? g.km : '—'} km`
+    + `${g && g.step <= 0.25 ? ' — đúng độ phân giải gốc 0,25° của mô hình' : ' — ô thưa hơn vì đang nhìn vùng rộng'}. `
+    + (g && g.fallbackFrom ? `Hạn mức lượt gọi buộc phải dùng ô thưa hơn mức mong muốn. ` : '')
+    + `Ảnh phẳng được nội suy bằng trình duyệt cho mượt; nó không thêm thông tin nào ngoài dữ liệu gốc. `
+    + `Cùng dữ liệu này đã được hiệu chỉnh và kiểm thử ở tab Phương pháp.</span>`;
 }
 
 function animPlaceCanvas() {
@@ -3435,7 +3763,7 @@ function animPlaceCanvas() {
  * Lấy lại lưới cho vùng đang xem, sau một khoảng chờ ngắn.
  *
  * Người dùng kéo bản đồ liên tục sẽ tạo ra hàng chục lần gọi nếu tải ngay, và
- * mỗi lần là 4 request. Chờ 1,2 giây im lặng rồi mới tải: đủ để khung hình
+ * mỗi lần là vài request. Chờ 1,2 giây im lặng rồi mới tải: đủ để khung hình
  * ngừng chạy, và vẫn nhận ra người dùng đã kết thúc thao tác.
  */
 function animRefreshSoon() {
@@ -3445,26 +3773,33 @@ function animRefreshSoon() {
 }
 
 let animRefreshBusy = false;
-async function animRefreshNow() {
+async function animRefreshNow(force) {
   if (!anim.on || animRefreshBusy) return;
-  const step = animSpanForView();
+  const tier = animTierForView();
   const center = animCenterForView();
   const cur = anim.grid;
-  // Đã đúng vùng và đúng mức thưa thì khỏi tải lại.
-  if (cur && Math.abs(cur.step - step) < step * 0.2
-    && Math.abs(cur.lat0 + ((cur.n - 1) * cur.step) / 2 - center.lat) < step * 0.8
-    && Math.abs(cur.lon0 + ((cur.n - 1) * cur.step) / 2 - center.lon) < step * 0.8) return;
+  /*
+   * Lưới đang phủ được vùng nhìn thì không tải lại. Kéo bản đồ là hành động rất
+   * thường xuyên, và mỗi lần tải lại là vài lượt gọi — mà hạn mức tính theo giờ
+   * DỮ LIỆU nên vài lần kéo là đủ cạn. Chỉ khi lưới không còn phủ nổi vùng xem mới
+   * tải lại, và lúc đó báo rõ là đang tải.
+   */
+  const needs = ANIM_NEEDS[anim.varKey] || [ANIM_SCALES[anim.varKey].field];
+  const hasAll = cur && needs.every(f => cur.fields[f]);
+  if (!force && hasAll && animGridCoversView(cur)) return;
   animRefreshBusy = true;
   const msg = $('animMsg');
-  if (msg) msg.textContent = 'Đang cập nhật lưới cho vùng đang xem…';
+  if (msg) msg.textContent = 'Đang tải lưới cho vùng đang xem…';
   try {
-    const g = await fetchAnimGrid(step, center);
+    const g = await fetchAnimGridWithFallback(anim.varKey, tier, center, (done, total) => {
+      if (msg) msg.textContent = `Đang tải lưới cho vùng đang xem… ${done}/${total} phần`;
+    });
     if (!anim.on) return;
     anim.grid = g;
     anim.dirty = true;
     const lg = $('animLegend');
     if (lg) lg.innerHTML = animLegendHtml();
-    animSeedParticles();
+    animSeedParticles(anim.grid);
     animPlaceCanvas();
     if (msg) msg.textContent = '';
   } catch (e) {
@@ -3474,8 +3809,8 @@ async function animRefreshNow() {
     animRefreshBusy = false;
   }
 }
+const g0 = tier => tier.n * tier.n;
 
-/** Bật/tắt lớp động và gắn mọi sự kiện bản đồ cần thiết. */
 async function setAnimLayer(on) {
   const msg = $('animMsg');
   const btn = $('animToggle');
@@ -3483,7 +3818,8 @@ async function setAnimLayer(on) {
     anim.on = false;
     animPlay(false);
     if (anim.raf) cancelAnimationFrame(anim.raf);
-    anim.timer = anim.raf = 0;
+    if (anim.refreshTimer) clearTimeout(anim.refreshTimer);
+    anim.timer = anim.raf = anim.refreshTimer = 0;
     for (const id of ['animCanvas', 'animParticles']) {
       const c = $(id);
       if (c) c.style.display = 'none';
@@ -3493,11 +3829,18 @@ async function setAnimLayer(on) {
     return;
   }
   if (!radarMap) { if (msg) msg.textContent = 'Hãy mở bản đồ radar trước khi bật lớp động.'; return; }
-  if (msg) msg.textContent = 'Đang tải lưới dự báo ' + (ANIM_N * ANIM_N) + ' điểm…';
+  const tier = animTierForView();
+  if (msg) msg.textContent = `Đang tải ${ANIM_SCALES[anim.varKey].label.toLowerCase()} trên lưới ${tier.n * tier.n} điểm, mỗi ô ${Math.round(tier.step * 111)} km…`;
   try {
-    anim.grid = await fetchAnimGrid(animSpanForView(), animCenterForView());
+    anim.grid = await fetchAnimGridWithFallback(anim.varKey, tier, animCenterForView(), (done, total) => {
+      if (msg) msg.textContent = `Đang tải lưới… ${done}/${total} phần`;
+    });
   } catch (e) {
-    if (msg) msg.textContent = 'Không tải được lưới dự báo: ' + e.message;
+    if (msg) {
+      msg.textContent = e.quota
+        ? 'Open-Meteo đã hết hạn mức lượt gọi trong giờ này. Bản đồ động sẽ trở lại khi hạn mức reset — phần dự báo dạng bảng ở tab Dự báo không bị ảnh hưởng.'
+        : 'Không tải được lưới dự báo: ' + e.message;
+    }
     return;
   }
   if (!anim.fieldCanvas) anim.fieldCanvas = document.createElement('canvas');
@@ -3508,6 +3851,7 @@ async function setAnimLayer(on) {
   anim.hour = idx >= 0 ? idx : 0;
   anim.on = true;
   anim.dirty = true;
+  anim.particlesOn = anim.varKey === 'wind';
 
   for (const id of ['animCanvas', 'animParticles']) {
     const c = $(id);
@@ -3518,22 +3862,32 @@ async function setAnimLayer(on) {
   const sl = $('animSlider');
   if (sl) { sl.max = anim.grid.hours.length - 1; sl.value = anim.hour; }
   if ($('animLegend')) $('animLegend').innerHTML = animLegendHtml();
+  const ptg = $('animParticlesToggle');
+  if (ptg) ptg.checked = anim.particlesOn;
   animUpdateTimeLabel();
-  if (msg) msg.textContent = '';
+  if (msg) {
+    msg.textContent = anim.grid.fallbackFrom
+      ? `Hạn mức lượt gọi nên đã dùng ô ${anim.grid.km} km thay vì ${Math.round(anim.grid.fallbackFrom * 111)} km.`
+      : '';
+  }
   if (!anim.bound) {
     anim.bound = true;
     radarMap.on('move zoom resize', () => { anim.dirty = true; animPlaceCanvas(); animRefreshSoon(); });
+    radarMap.on('click', e => animShowReadout(e.containerPoint));
+    radarMap.on('mousemove', e => {
+      if (anim.dragging) return;
+      animShowReadout(e.containerPoint);
+    });
+    radarMap.on('dragstart', () => { anim.dragging = true; });
+    radarMap.on('dragend', () => { anim.dragging = false; });
   }
-  animSeedParticles();
+  animSeedParticles(anim.grid);
   if (anim.raf) cancelAnimationFrame(anim.raf);
   anim.last = 0;
   // Vẽ ngay một khung thay vì chờ requestAnimationFrame đầu tiên: nếu tab đang
   // chạy nền, trình duyệt hãm nhịp khung hình và người dùng sẽ thấy lớp động
   // "không bật" dù nó đã bật. Hạt gió vẫn cần vòng lặp, nhưng trường thì không.
   animDrawField(anim.grid, anim.hour);
-  // Vẽ vài chục vòng hạt gió ngay. Ở một tab chạy nền, trình duyệt có thể không
-  // bắn requestAnimationFrame cho tới khi người dùng nhìn vào; nếu chỉ dựa vào
-  // vòng lặp, lớp gió sẽ trông như không có gì.
   for (let i = 0; i < 40; i++) animDrawParticles(anim.grid, anim.hour, 16);
   anim.raf = requestAnimationFrame(animTick);
 }
@@ -3557,10 +3911,41 @@ function animSetVar(key) {
   if (!ANIM_SCALES[key]) return;
   anim.varKey = key;
   anim.dirty = true;
+  // Hạt gió chỉ có nghĩa với biến gió; bật biến khác thì tắt hạt để không vẽ rác.
+  anim.particlesOn = key === 'wind';
+  const pc = $('animParticles');
+  if (pc) pc.getContext('2d').clearRect(0, 0, pc.width, pc.height);
   const sel = $('animVar');
   if (sel) sel.value = key;
   if ($('animLegend')) $('animLegend').innerHTML = animLegendHtml();
-  if (!anim.on) setAnimLayer(true);
+  const lbl = $('animParticlesNote');
+  if (lbl) lbl.hidden = key !== 'wind';
+  if (!anim.on) { setAnimLayer(true); return; }
+  // Vẽ ngay vài chục vòng hạt. Ở tab chạy nền, requestAnimationFrame bị hãm
+  // nhịp, nên nếu chờ vòng lặp thì bật hạt gió ra mà bản đồ vẫn trống — người
+  // dùng sẽ tưởng công tắc hỏng.
+  if (anim.particlesOn && anim.grid) {
+    for (let i = 0; i < 40; i++) animDrawParticles(anim.grid, anim.hour, 16);
+  }
+}
+
+/** Bật/tắt đường đồng mức và hạt gió. */
+function animToggleLayer(name, on) {
+  if (name === 'contours') {
+    anim.contours = on;
+    anim.dirty = true;
+    if (!on) {
+      const c = anim.fieldCanvas;
+      if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      anim.dirty = true;
+    }
+  } else if (name === 'particles') {
+    anim.particlesOn = on && anim.varKey === 'wind';
+    if (!on) {
+      const pc = $('animParticles');
+      if (pc) pc.getContext('2d').clearRect(0, 0, pc.width, pc.height);
+    }
+  }
 }
 /* ---------- tropical cyclones (GDACS positions, not our track forecast) ---------- */
 
@@ -3734,6 +4119,23 @@ function initAnimControls() {
   if (s) {
     s.oninput = () => { anim.hour = +s.value; anim.dirty = true; animUpdateTimeLabel(); };
     s.onchange = () => animPlay(false);
+  }
+  const c = $('animContours');
+  if (c) c.onchange = () => animToggleLayer('contours', c.checked);
+  const pt = $('animParticlesToggle');
+  if (pt) pt.onchange = () => animToggleLayer('particles', pt.checked);
+  const op = $('animOpacity');
+  if (op) {
+    const apply = () => {
+      const v = +op.value / 100;
+      const field = $('animCanvas'), part = $('animParticles');
+      if (field) field.style.opacity = v;
+      // Hạt gió mờ đi theo nhưng không tới mức biến mất, nếu không người dùng
+      // tưởng lớp bị hỏng khi kéo thanh độ phủ.
+      if (part) part.style.opacity = Math.min(1, 0.35 + v * 0.72);
+    };
+    op.oninput = apply;
+    apply();
   }
 }
 

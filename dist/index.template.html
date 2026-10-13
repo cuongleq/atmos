@@ -149,9 +149,18 @@
     <button type="button" id="animPlay" class="secondary">▶ Phát</button>
     <output id="animTime" class="small">—</output>
   </div>
-  <input type="range" id="animSlider" min="0" max="47" value="0" step="1" aria-label="Giờ dự báo">
+  <input type="range" id="animSlider" min="0" max="35" value="0" step="1" aria-label="Giờ dự báo">
+  <div class="anim-row anim-toggles">
+    <label><input type="checkbox" id="animContours"> Đường đồng mức</label>
+    <label><input type="checkbox" id="animParticlesToggle" checked> Hạt gió</label>
+    <label for="animOpacity">Độ phủ</label>
+    <input type="range" id="animOpacity" min="10" max="100" value="72" step="2" aria-label="Độ phủ lớp dự báo">
+    <span class="tiny">Hạt gió chỉ hiện ở biến gió.</span>
+  </div>
+  <div id="animReadout" class="anim-readout" hidden></div>
   <div id="animLegend" class="anim-legend"></div>
-  <p class="small">Lớp này vẽ dự báo của mô hình trên lưới 13×13 điểm lấy quanh vị trí bạn chọn, phủ khoảng 470 × 470 km. Mỗi ô cách nhau 39 km nên các chi tiết nhỏ giữa các ô không có thật trong dữ liệu — đừng đọc vùng nhỏ hơn một thành phố. Muốn số chính xác tại một điểm, xem tab Dự báo.</p>
+  <p class="small">Lớp này lấy dự báo trên lưới điểm, <strong>tự đổi độ thưa theo mức phóng</strong> và <strong>chỉ tải đúng biến đang xem</strong> — mỗi lần tải chỉ mất một phần nhỏ hạn mức miễn phí của Open-Meteo, vốn tính theo số giờ dữ liệu chứ không phải số lần gọi: thu nhỏ xa thì ô thưa để vẫn nằm trong giới hạn lượt gọi miễn phí, phóng to thì ô về đúng 0,25° — độ phân giải gốc của mô hình, không mịn hơn thể được. Trong chúng tôi <strong>không bao giờ</strong> xin lưới mịn hơn 0,25° vì những chi tiết đó không có trong dữ liệu. Kéo hoặc phóng bản đồ thì lớp tự tải lại lưới cho vùng đang xem.</p>
+  <p class="small">Di chuột lên bản đồ để đọc giá trị tại đúng điểm đó. Muốn số chính xác kèm khoảng tin cậy và hiệu chỉnh, xem tab Dự báo.</p>
 </div>
 <div class="anim-bar">
   <button type="button" id="radarPlay" class="secondary">▶ Phát radar</button>

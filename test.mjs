@@ -1081,14 +1081,21 @@ check('bản đồ dự báo động và radar hoạt hình có mặt, có ngu�
   wired('animToggle', 'setAnimLayer');
   wired('animPlay', 'animPlay');
   wired('radarPlay', 'radarPlay');
-  // Lưới phải chia khối: Open-Meteo trả 503 khi nhận quá nhiều toạ độ một lần.
+  // Lưới phải chia khối. Đo thực nghiệm: 144 toạ độ một request còn lọt,
+  // 169 là 503 — trần không công bố. Lấy 140 để có dự phòng.
   assert.ok(/ANIM_CHUNK/.test(html), 'phải chia lưới thành khối khi tải');
-  assert.ok(/ANIM_CHUNK = (\d+)/.test(html) && +html.match(/ANIM_CHUNK = (\d+)/)[1] <= 50,
-    'khối phải nhỏ, Open-Meteo từ chối trên 64 toạ độ');
+  const chunk = /ANIM_CHUNK = (\d+)/.exec(html);
+  assert.ok(chunk && +chunk[1] <= 144, 'khối phải không vượt 144 toạ độ, trên đó Open-Meteo trả 503');
+  // Và phải giữ tổng dung lượng trong ngân sách: hạn mức tính theo GIỜ DỮ LIỆU,
+  // nên tải cả 5 biến mỗi lần sẽ cạn hạn mức sau vài lần kéo bản đồ.
+  assert.ok(/ANIM_NEEDS/.test(html), 'phải tải đúng biến đang xem, không phải cả 5 biến');
+  const hours = /ANIM_HOURS = (\d+)/.exec(html);
+  assert.ok(hours && +hours[1] <= 48, 'số giờ dự báo nên giữ ở mức vừa phải');
+  assert.ok(/animGridCoversView/.test(html), 'kéo bản đồ phải bỏ qua khi lưới còn phủ được vùng xem');
   // Lưới phải bám theo bản đồ, không bám địa điểm: bản đồ radar có thể đang
   // đặt tâm ở vị trí bão cách xa.
   assert.ok(/animCenterForView/.test(html), 'lưới phải lấy tâm từ bản đồ');
-  assert.ok(/anim.grid\.step/.test(html), 'phải dùng bước lưới của lưới đang vẽ');
+  assert.ok(/grid\.step/.test(html), 'phải dùng bước lưới của lưới đang vẽ, không hard-code');
 });
 check('lớp khối khí và sông có mặt, ghi rõ giới hạn nguồn số liệu', () => {
   for (const id of ['airMassBox', 'trajectory', 'trajNote', 'riverList', 'riverChart', 'massMeta', 'tcList', 'tcMeta']) {

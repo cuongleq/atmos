@@ -72,6 +72,15 @@ button,input,select{font:inherit}button,a,input,select,summary{touch-action:mani
   .anim-row{gap:8px}
   .anim-row select{min-width:0;flex:1 1 100%}
   .anim-ramp{max-width:none}
+}
+.anim-toggles{gap:14px;margin-top:2px}
+.anim-toggles label{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);white-space:nowrap}
+.anim-toggles input[type=checkbox]{width:auto;accent-color:var(--blue)}
+#animOpacity{width:120px;margin:0}
+.anim-readout{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px;padding:7px 11px;border-radius:9px;background:#eef4fb;border:1px solid #cfe0f2;font-size:13px}
+.anim-readout i{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.2);flex:none}
+@media(prefers-color-scheme:dark){
+  .anim-readout{background:#1b2740;border-color:rgba(255,255,255,.14)}
 }.nchmf-section-title{font-size:15px;font-weight:700;margin:18px 0 10px;display:flex;align-items:center;gap:6px;color:var(--ink)}.nchmf-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfcfd;transition:all .18s ease}.nchmf-card:hover{border-color:var(--blue);background:#fff;box-shadow:0 3px 12px rgba(0,0,0,0.06);transform:translateY(-1px)}.nchmf-card.red{border-left:4px solid #c0392b;background:#fffaf9}.nchmf-card.orange{border-left:4px solid #e67e22;background:#fffdf9}.nchmf-card.info{border-left:4px solid #245fa1}.nchmf-card-title{font-size:14px;font-weight:700;margin:0 0 6px;line-height:1.45;color:var(--ink)}.nchmf-card-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}.nchmf-card-link{margin-left:auto;color:var(--blue);font-weight:600;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px}.nchmf-card-link:hover{text-decoration:underline;color:#184a83}.nchmf-routine-box{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}.nchmf-routine-box h4{margin:0 0 8px;font-size:15px}.nchmf-routine-box p{margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#334155}.nchmf-item{border-top:1px solid var(--line);padding:10px 0}.nchmf-item h4{margin:0 0 4px;font-size:14px}.nchmf-item p{margin:0 0 6px;font-size:13px;color:var(--muted)}
 /* ==== responsive ==== */
 /*

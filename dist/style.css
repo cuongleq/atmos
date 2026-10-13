@@ -81,6 +81,19 @@ button,input,select{font:inherit}button,a,input,select,summary{touch-action:mani
 .anim-readout i{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.2);flex:none}
 @media(prefers-color-scheme:dark){
   .anim-readout{background:#1b2740;border-color:rgba(255,255,255,.14)}
+}
+/* Chỉ số năng lượng đối lưu */
+.storm-top{display:flex;flex-wrap:wrap;gap:22px;margin-bottom:12px}
+.storm-top>div{flex:1 1 190px;min-width:0}
+.storm-peak{margin:2px 0;font-size:22px;font-weight:650;letter-spacing:-.01em}
+.storm-chart{display:flex;align-items:flex-end;gap:2px;height:62px;padding:6px 0 0;border-bottom:1px solid var(--line)}
+.storm-bar{flex:1 1 0;min-width:2px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#8fb7a2,#3f7a44)}
+.storm-bar.mid{background:linear-gradient(180deg,#e8c65a,#c98a2a)}
+.storm-bar.high{background:linear-gradient(180deg,#f0913a,#d0502c)}
+.storm-bar.severe{background:linear-gradient(180deg,#c76ad6,#8e1f8e)}
+@media(prefers-color-scheme:dark){
+  .storm-chart{border-bottom-color:rgba(255,255,255,.16)}
+  .storm-bar{opacity:.92}
 }.nchmf-section-title{font-size:15px;font-weight:700;margin:18px 0 10px;display:flex;align-items:center;gap:6px;color:var(--ink)}.nchmf-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fbfcfd;transition:all .18s ease}.nchmf-card:hover{border-color:var(--blue);background:#fff;box-shadow:0 3px 12px rgba(0,0,0,0.06);transform:translateY(-1px)}.nchmf-card.red{border-left:4px solid #c0392b;background:#fffaf9}.nchmf-card.orange{border-left:4px solid #e67e22;background:#fffdf9}.nchmf-card.info{border-left:4px solid #245fa1}.nchmf-card-title{font-size:14px;font-weight:700;margin:0 0 6px;line-height:1.45;color:var(--ink)}.nchmf-card-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}.nchmf-card-link{margin-left:auto;color:var(--blue);font-weight:600;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:3px}.nchmf-card-link:hover{text-decoration:underline;color:#184a83}.nchmf-routine-box{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}.nchmf-routine-box h4{margin:0 0 8px;font-size:15px}.nchmf-routine-box p{margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#334155}.nchmf-item{border-top:1px solid var(--line);padding:10px 0}.nchmf-item h4{margin:0 0 4px;font-size:14px}.nchmf-item p{margin:0 0 6px;font-size:13px;color:var(--muted)}
 /* ==== responsive ==== */
 /*

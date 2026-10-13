@@ -1201,6 +1201,106 @@ check('bản đồ: khoảng cách tới đường đi và hướng la', () => {
   near(hit.km, 109.2, 2, 'diem gan nhat cach 1 do kinh do');
   assert.ok(hit.hoursAgo >= 0 && hit.hoursAgo <= 6, 'vi tri phai nam trong doan, nhan ' + hit.hoursAgo);
 });
+check('chỉ số đối lưu: công thức, hiệu chuẩn và chấm điểm', () => {
+  const L = globalThis.AtmosEngine;
+
+  /* --- Chỉ số phải đơn điệu và nằm trong [0,1] --- */
+  const lo = L.lightningIndex({ cape: 200, liftedIndex: 3, convectiveInhibition: 20 });
+  const hi = L.lightningIndex({ cape: 2400, liftedIndex: -4, convectiveInhibition: 20 });
+  assert.ok(hi.risk > lo.risk, 'CAPE cao phải cho điểm cao hơn');
+  assert.ok(lo.risk >= 0 && hi.risk <= 1, 'điểm phải nằm trong [0,1]');
+  const kien = L.lightningIndex({ cape: 2000, liftedIndex: 3, convectiveInhibition: 220 });
+  const mo = L.lightningIndex({ cape: 2000, liftedIndex: -4, convectiveInhibition: 20 });
+  assert.ok(mo.risk > kien.risk, 'nắp kín và bất ổn yếu phải kìm điểm xuống');
+
+  /* --- Thiếu thành phần phải được nói ra, và không được thưởng oan --- */
+  const chiCape = L.lightningIndex({ cape: 2000 });
+  assert.ok(chiCape && chiCape.ingredients.length === 1 && chiCape.partial === true,
+    'chỉ có CAPE phải trả điểm và ghi rõ là chưa đủ thành phần');
+  assert.equal(L.lightningIndex({}), null, 'không có thành phần nào thì không có điểm');
+  assert.equal(L.lightningIndex(null), null, 'không có đối tượng thì không có điểm');
+  // Hai mô hình cùng CAPE: một cái bị nắp kín (CIN = 200), một cái không có CIN.
+  // Nếu coi thiếu CIN là "nắp mở" thì mô hình thiếu dữ liệu sẽ được thưởng.
+  const coCIN = L.lightningIndex({ cape: 2000, convectiveInhibition: 200 });
+  const khongCIN = L.lightningIndex({ cape: 2000, convectiveInhibition: null });
+  assert.ok(khongCIN.risk > coCIN.risk, 'không có CIN thì điểm cao hơn, nhưng');
+  // Giới hạn trên do chính trọng số của CIN đặt ra: khi CIN biến mất, trọng số
+  // được chia lại cho CAPE, và mức nâng tối đa bằng 1/0,15^(0,15/0,75) ≈ 1,46.
+  // Kiểm đúng giới hạn này thay vì một ngưỡng tuỳ ý — và vì nó không vô hạn,
+  // nên việc thiếu dữ liệu được nói ra bằng cờ partial chứ không phải là im lặng.
+  const bound = Math.pow(0.15, 0.15 / 0.75);
+  assert.ok(khongCIN.risk / coCIN.risk <= 1 / bound + 1e-9,
+    `nâng điểm do thiếu CIN vượt giới hạn thiết kế (${(khongCIN.risk / coCIN.risk).toFixed(3)} > ${(1 / bound).toFixed(3)})`);
+
+  /* --- Spearman --- */
+  assert.equal(L.spearman([1, 2, 3, 8, 9], [10, 8, 6, 4, 2]), -1, 'Spearman ngược chiều = −1');
+  assert.equal(L.spearman([1, 2, 3, 8, 9], [2, 4, 6, 8, 10]), 1, 'Spearman cùng chiều = 1');
+  assert.equal(L.spearman([1, 1, 1], [1, 2, 3]), null, 'quá ít mẫu thì không có hệ số');
+
+  /* --- Brier/BSS: ba trường hợp có đáp án biết trước --- */
+  const perfect = [...Array(100)].map(() => ({ risk: 0.999, obs: 5 }))
+    .concat([...Array(900)].map(() => ({ risk: 0.001, obs: 0 })));
+  // Khí quyết định: xác suất cố định BẰNG tỉ lệ nền 100/1000 = 0,1.
+  // Đặt tỉ lệ nền 50% mà vẫn dự báo 0,1 thì không còn là khí quyết định nữa, và
+  // BSS phải dương — đó không phải phép kiểm BSS bằng 0.
+  const clim = [...Array(100)].map(() => ({ risk: 0.1, obs: 5 }))
+    .concat([...Array(900)].map(() => ({ risk: 0.1, obs: 0 })));
+  const vPerf = L.lightningVerify(perfect, 5);
+  const vClim = L.lightningVerify(clim, 5);
+  assert.ok(vPerf.bss > 0.95, 'dự báo gần hoàn hảo phải có BSS gần 1, thực tế ' + vPerf.bss);
+  assert.ok(Math.abs(vClim.bss) < 1e-9, 'khí quyết định phải có BSS bằng 0, thực tế ' + vClim.bss);
+  assert.ok(vClim.brier > 0 && vClim.brier < 0.2, 'Brier của khí quyết định phải nhỏ, thực tế ' + vClim.brier);
+  assert.ok(L.lightningVerify([{ risk: 0.1, obs: 0 }], 5).insufficient, 'tập quá nhỏ thì báo thiếu dữ liệu');
+
+  /* --- Logistic fit phải hội tụ về hệ số thật --- */
+  let seed = 11;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const gx = [], gy = [];
+  for (let i = 0; i < 20000; i++) {
+    const t = 0.4 + 0.25 * (Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd()));
+    gx.push(t);
+    gy.push(rnd() < 1 / (1 + Math.exp(4.2 - 2.4 * t)) ? 1 : 0);
+  }
+  const cal = L.logisticFit(gx, gy);
+  assert.ok(cal, 'logistic fit phải trả hệ số');
+  // Sau khi chuẩn hoá x, hệ số thật là a = −3.24, b = 0.607.
+  assert.ok(Math.abs(cal.a + 3.24) < 0.3, 'hệ số chặn lệch quá nhiều: ' + cal.a);
+  assert.ok(Math.abs(cal.b - 0.61) < 0.25, 'hệ số dốc lệch quá nhiều: ' + cal.b);
+  assert.ok(L.applyCalibration(cal, [0.1])[0] < L.applyCalibration(cal, [0.9])[0],
+    'xác suất phải tăng theo chỉ số');
+
+  /* --- Isotonic: đơn điệu, đúng tần suất, không NaN --- */
+  const ix = [], iy = [];
+  for (let i = 0; i < 8000; i++) {
+    const t = rnd();
+    ix.push(t);
+    iy.push(rnd() < (t < 0.8 ? 0.06 : 0.45) ? 1 : 0);
+  }
+  const iso = L.isotonicCalibrate(ix, iy);
+  assert.ok(iso, 'isotonic phải fit được');
+  assert.equal(iso.knots.length, iso.values.length, 'số nút phải bằng số giá trị');
+  for (let i = 1; i < iso.knots.length; i++) {
+    assert.ok(iso.knots[i] > iso.knots[i - 1], 'nút phải tăng dần, sai ở vị trí ' + i);
+  }
+  for (let i = 1; i < iso.values.length; i++) {
+    assert.ok(iso.values[i] >= iso.values[i - 1] - 1e-12, 'giá trị phải đơn điệu tăng, sai ở vị trí ' + i);
+  }
+  const pv = L.applyIsotonic(iso, ix);
+  assert.ok(pv.every(Number.isFinite), 'mọi xác suất phải hữu hạn, không NaN');
+  assert.ok(pv[0] < pv[pv.length - 1], 'xác suất phải tăng theo chỉ số');
+  const ord = ix.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]).slice(-1600);
+  assert.ok(L.applyIsotonic(iso, [ord[0][0]])[0] > 0.25, 'nhóm cao nhất phải dự báo trên 25%');
+  assert.ok(L.applyIsotonic(iso, [ix[0]])[0] < 0.2, 'nhóm thấp nhất phải dự báo dưới 20%');
+
+  /* --- Dải nguy cơ theo phân vị của chính địa điểm --- */
+  const vals = Array.from({ length: 4000 }, (_, i) => (i % 1000) / 1000);
+  const b = L.lightningBands(vals);
+  assert.ok(b && b.p50 > 0 && b.p95 > b.p80 && b.p99 > b.p95, 'phân vị phải tăng dần');
+  assert.equal(L.lightningLevel(b.p99 + 0.001, b), 'p99', 'vượt p99 là mức rất cao');
+  assert.equal(L.lightningLevel(b.p50 * 0.5, b), 'low', 'dưới trung vị là mức thấp');
+  assert.equal(L.lightningLevel(NaN, b), null, 'điểm không hợp lệ thì không có mức');
+});
+
 console.log(`\n${failures.length ? 'FAIL' : 'PASS'} — ${passed} nhóm kiểm thử đã qua, ${failures.length} lỗi.`);
 if (failures.length) {
   console.log('Danh sách lỗi:');

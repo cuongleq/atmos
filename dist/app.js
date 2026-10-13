@@ -789,6 +789,240 @@ function renderRiverChart() {
     <p class="small">Đường đậm là lưu lượng trung vị quan sát, đường đứt là 7 ngày dự báo; dải xanh nhạt là khoảng p25–p75 của bộ thành viên tổ hợp GloFAS, phản ánh mức chắc chắn của dòng chảy chứ không phải mực nước tính bằng mét. Các đường ngang là ngưỡng <strong>tham chiếu</strong> lấy từ phân vị lịch sử 12 tháng của chính tuyến này, không phải báo động chính thức. Nguồn: Global Flood Awareness System (GloFAS v4) qua Open-Meteo.</p>`;
 }
 
+/* ---------------------------------------------------------------------
+ * Chỉ số năng lượng đối lưu (CAPE) và nguy cơ bão tố
+ * =====================================================================
+ *
+ * Tên gọi cẩn thận: đây KHÔNG phải dự báo động sét. Không có nguồn mở nào
+ * cấp dự báo tia sét cho Việt Nam — biến `lightning_potential` của Open-Meteo
+ * được chấp nhận nhưng luôn trả null ở cả bảy mô hình, đo trên cả tám địa
+ * điểm. Nói "dự báo động sét" khi không có dữ liệu sét là bịa số, nên giao
+ * diện gọi đúng tên: chỉ số năng lượng đối lưu và nguy cơ bão tố.
+ *
+ * Chỉ số dùng ba trường của mô hình — CAPE, lifted index, CIN — hiệu chuẩn
+ * thành xác suất theo đường bậc thang đồng ý fit trên tập huấn luyện
+ * (xem ltbench.mjs). Mức cảnh báo lấy từ phân vị 12 tháng của CHÍNH địa điểm
+ * đó, cùng logic đã dùng cho ngưỡng báo lũ GloFAS: một ngưỡng chung cho cả
+ * nước sẽ vô nghĩa vì Đà Lạt và Rừng Tràm không giống nhau.
+ */
+
+const STORM = (() => {
+  try {
+    const el = document.getElementById('lightning-data');
+    return JSON.parse(el ? el.textContent : '{}');
+  } catch { return {}; }
+})();
+
+const STORM_FIELDS = 'cape,lifted_index,convective_inhibition';
+const STORM_LEVELS = {
+  low: { name: 'Thấp', cls: 'low', note: 'dưới trung vị của 12 tháng tại đây' },
+  p50: { name: 'Trung bình', cls: 'low', note: 'từ trung vị 12 tháng trở lên' },
+  p80: { name: 'Khá', cls: 'mid', note: 'vượt 80% số giờ trong 12 tháng' },
+  p95: { name: 'Cao', cls: 'high', note: 'vượt 95% số giờ trong 12 tháng' },
+  p99: { name: 'Rất cao', cls: 'severe', note: 'vượt 99% số giờ trong 12 tháng' },
+};
+
+/* Toạ độ 8 địa điểm đã kiểm chứng, dùng để tìm điểm tham chiếu gần nhất. */
+const PLACE_COORDS = {
+  hcm: [10.8231, 106.6297], hanoi: [21.0285, 105.8542], daklak: [12.6675, 108.0378],
+  songcau: [13.4556, 109.2235], danang: [16.0544, 108.2022], dalat: [11.9469, 108.4583],
+  cantho: [10.0452, 105.7469], nhatrang: [12.2395, 109.196],
+};
+
+/**
+ * Địa điểm đã kiểm chứng gần nhất — nơi lấy dải phân vị 12 tháng và số liệu
+ * đo được. Dùng điểm gần nhất chứ không dùng "tp.HCM cho mọi thứ" vì chỉ số
+ * này mang nghĩa khác nhau rõ rệt giữa Đà Lạt và Phú Yên.
+ */
+function stormReference() {
+  if (!STORM.locations) return null;
+  let best = null, bestD = Infinity;
+  for (const [id, loc] of Object.entries(STORM.locations)) {
+    const c = PLACE_COORDS[id];
+    if (!c || !loc.bands) continue;
+    const d = E.distanceKm(place, { lat: c[0], lon: c[1] });
+    if (d < bestD) { bestD = d; best = { id, loc, km: E.round(d, 0) }; }
+  }
+  return best;
+}
+
+function stormIndexOf(cape, li, cin) {
+  return E.lightningIndex({ cape, liftedIndex: li, convectiveInhibition: cin });
+}
+
+/** Mức cảnh báo theo dải phân vị 12 tháng của địa điểm tham chiếu. */
+function stormLevel(risk, bands) {
+  const id = E.lightningLevel(risk, bands);
+  return id ? { id, ...STORM_LEVELS[id] } : null;
+}
+
+/**
+ * Câu mô tả mức độ tin cậy, viết ra từ SỐ ĐÃ ĐO chứ không viết tay.
+ *
+ * Chú giải từng ghi cứng "nhóm cao mưa gấp 2–4 lần". Khi kiểm tra thêm biến
+ * thể chỉ dùng GFS — mô hình duy nhất có đủ CAPE + LI + CIN nên cùng thang đo —
+ * thì độ nâng chỉ còn khoảng 1,4 lần. Con số phải lấy từ dữ liệu, và cả hai
+ * con số phải hiện ra: chỉ đưa cái đẹp thì là nói dối.
+ */
+function stormSkillSentence() {
+  const m = STORM.medianContrast, f = STORM.medianContrastFull || {};
+  if (!m || m.ratio == null) return 'Số liệu kiểm chứng chưa có trong bản dựng này.';
+  const pct = v => v == null ? '—' : Math.round(v * 100) + '%';
+  const full = f.ratio == null ? ''
+    : ' Chỉ dùng GFS — mô hình duy nhất có đủ ba thành phần nên cùng thang đo — độ nâng còn ' + f.ratio + ' lần';
+  return 'Nhóm 20% giờ có điểm cao nhất có mưa ở ' + pct(m.highRate) + ' số giờ so với '
+    + pct(m.lowRate) + ' ở nhóm còn lại (' + m.locationsWithGain + '/' + m.locationsTotal + ' địa điểm có lợi).'
+    + full + ' Nhưng điểm kỹ năng BSS so với khí quyết định chỉ quanh 0, tức nó KHÔNG thừa kỹ thuật trong việc dự báo một ngưỡng mưa cụ thể.';
+}
+
+let stormToken = 0;
+
+async function loadStorm() {
+  const box = $('stormBox');
+  if (!box) return;
+  const token = ++stormToken;
+  if (STORM.stub || !STORM.locations || !Object.keys(STORM.locations).length) {
+    box.innerHTML = '<p class="small">Chưa có dữ liệu kiểm chứng cho chỉ số này. Chạy <code>node ltbench.mjs</code> rồi dựng lại trang.</p>';
+    const m = $('stormMeta'); if (m) m.textContent = '—';
+    return;
+  }
+  box.innerHTML = '<p class="muted">Đang tải CAPE, lifted index và CIN…</p>';
+  try {
+    const u = new URLSearchParams({
+      latitude: String(place.lat), longitude: String(place.lon),
+      hourly: STORM_FIELDS, forecast_days: '2', timezone: 'Asia/Ho_Chi_Minh',
+    });
+    const j = await api('https://api.open-meteo.com/v1/forecast', u);
+    if (token !== stormToken) return;
+    const h = j.hourly;
+    const nowKey = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 13);
+    const start = Math.max(0, h.time.findIndex(t => t.slice(0, 13) >= nowKey));
+    const hours = h.time.length - start;
+    const rows = [];
+    for (let i = start; i < h.time.length; i++) {
+      const idx = stormIndexOf(h.cape[i], h.lifted_index ? h.lifted_index[i] : null, h.convective_inhibition ? h.convective_inhibition[i] : null);
+      if (idx) rows.push({ t: h.time[i], risk: idx.risk, cape: h.cape[i], li: h.lifted_index ? h.lifted_index[i] : null, cin: h.convective_inhibition ? h.convective_inhibition[i] : null, parts: idx.ingredients.length });
+    }
+    if (!rows.length) { box.innerHTML = '<p class="small">Mô hình không trả CAPE cho điểm này trong 36 giờ tới.</p>'; return; }
+    // forecast_days=2 trả về tới 48 giờ. Cắt còn 36 để khớp với nhãn và với
+    // lưới bản đồ dự báo động — cùng một cửa sổ thời gian ở mọi nơi.
+    renderStorm(rows.slice(0, 36));
+  } catch (e) {
+    if (token !== stormToken) return;
+    box.innerHTML = '<p class="small">Không lấy được dữ liệu đối lưu: ' + esc(e.message) + '</p>';
+  }
+}
+
+function renderStorm(rows) {
+  const box = $('stormBox');
+  const ref = stormReference();
+  const bands = ref ? ref.loc.bands : null;
+  const hours = rows.length;
+
+  // Đỉnh trong 36 giờ và các khung giờ liên tiếp ở mức cao — thứ người dùng
+  // cần biết là "khi nào", chứ không phải "mức bao nhiêu".
+  const peak = rows.reduce((a, b) => (b.risk > a.risk ? b : a), rows[0]);
+  const windows = stormWindows(rows, bands);
+
+  const parts = rows.reduce((acc, r) => acc + r.parts, 0) / hours;
+  const ingredients = parts >= 2.99 ? 'CAPE + lifted index + CIN'
+    : parts >= 1.99 ? 'CAPE + một thành phần phụ' : 'chỉ CAPE (mô hình không có LI/CIN)';
+
+  let skill = '';
+  if (ref) {
+    const v = ref.loc.verify && ref.loc.verify[5];
+    const c = ref.loc.contrast;
+    const rho = v && v.rollingYear ? v.rollingYear.spearman : null;
+    skill = `<p class="small">Ở <strong>${esc(ref.loc.name)}</strong> — điểm đã kiểm chứng gần nhất — nhóm 20% giờ có chỉ số cao nhất có mưa ở
+      <strong>${c.high.rate == null ? '—' : Math.round(c.high.rate * 100) + '%'}</strong> số giờ so với
+      <strong>${c.low.rate == null ? '—' : Math.round(c.low.rate * 100) + '%'}</strong> ở nhóm còn lại
+      ${c.ratio ? `<strong> (gấp ${c.ratio})</strong>` : ''},
+      hệ số thứ hạng ρ = <strong>${rho == null ? '—' : rho.toFixed(2)}</strong>.
+      Đây là những con số đo được trên 12 tháng dữ liệu, không phải ước lượng suông.</p>
+      <p class="small">Nhưng điểm phải nói thẳng: với ngưỡng mưa ≥5 mm/giờ, điểm kỹ năng BSS của chỉ số chỉ quanh
+      <strong>${v && v.rollingYear ? v.rollingYear.bss.toFixed(3) : '—'}</strong>, tức
+      <strong>không nhỉnh hơn khí quyết định</strong>. Chỉ số xếp hạng các giờ được khá; nó không phải một dự báo
+      xác suất đáng tin cho một ngưỡng mưa cụ thể.</p>`;
+  }
+
+  const bars = stormBars(rows, bands);
+  box.innerHTML = `
+    <div class="storm-top">
+      <div><p class="eyebrow">36 GIỜ TỚI · ĐỈNH</p>
+        <p class="storm-peak">${esc(fmtHour(peak.t))}</p>
+        <p class="small muted">chỉ số ${peak.risk.toFixed(2)} · CAPE ${Math.round(peak.cape)} J/kg</p></div>
+      <div><p class="eyebrow">THÀNH PHẦN ĐÃ DÙNG</p>
+        <p class="small">${esc(ingredients)}</p>
+        <p class="tiny muted">Thiếu thành phần thì phần đó bị bỏ qua và trọng số được chuẩn hoá lại, không bị coi là 0.</p></div>
+    </div>
+    <div class="storm-chart">${bars}</div>
+    ${windows.length ? `<p class="small"><strong>Khung giờ nổi bật:</strong> ${windows.map(w => `${esc(fmtHour(w.t0))}–${esc(fmtHour(w.t1))}`).join(' · ')}</p>`
+      : `<p class="small">${stormHoursText(rows, bands)}</p>`}
+    ${skill}`;
+
+  const m = $('stormMeta');
+  if (m) m.textContent = `${hours} giờ · ${ingredients}`;
+  const lim = $('stormLimits');
+  if (lim && STORM.limits && STORM.limits.length) {
+    lim.innerHTML = '<strong>Giới hạn đã biết:</strong><br>' + STORM.limits.map(l => '· ' + esc(l)).join('<br>');
+  }
+}
+
+/** Số giờ theo từng mức, để câu thông báo không mâu thuẫn với các cột đã vẽ. */
+function stormHoursText(rows, bands) {
+  const cut = bands ? bands.p80 : 0.55;
+  const n = rows.filter(r => r.risk >= cut).length;
+  if (!n) return 'Không giờ nào trong 36 giờ tới chạm mức <em>' + (bands ? STORM_LEVELS.p80.name.toLowerCase() : 'khá') + '</em>.';
+  return `Có ${n}/${rows.length} giờ chạm mức ${bands ? STORM_LEVELS.p80.name.toLowerCase() : 'khá'} trở lên, nhưng rải rác nên không có khung liên tiếp nào đủ dài để gọi là khung.`;
+}
+
+function fmtHour(iso) {
+  const d = new Date(iso + ':00+07:00');
+  return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/** Các khung giờ liên tiếp đạt mức "khá" trở lên. */
+/**
+ * Các khung giờ liên tiếp đạt mức "khá" trở lên.
+ *
+ * Viết bằng CHỈ SỐ MẢNG chứ không so chuỗi thời gian: so chuỗi thì điều kiện
+ * dừng rất dễ trượt ra ngoài mảng, và lỗi đó làm cả panel biến mất thay vì báo
+ * lỗi. Khung quá dài được CẮT thành các đoạn tối đa 12 giờ chứ không bị bỏ: bỏ
+ * đi thì câu "không có khung nào" sẽ nói ngược với hình đang vẽ.
+ */
+function stormWindows(rows, bands) {
+  const cut = bands ? bands.p80 : 0.55;
+  const runs = [];
+  let from = -1;
+  for (let i = 0; i <= rows.length; i++) {
+    const hot = i < rows.length && rows[i].risk >= cut;
+    if (hot && from < 0) from = i;
+    if (!hot && from >= 0) { runs.push([from, i - 1]); from = -1; }
+  }
+  const MAX = 12;                     // giờ
+  const out = [];
+  for (const [a, b] of runs) {
+    if (b - a < 1) continue;          // một giờ lẻ chưa đáng gọi là khung
+    for (let k = a; k <= b; k += MAX) {
+      const e = Math.min(b, k + MAX - 1);
+      out.push({ t0: rows[k].t, t1: rows[e].t });
+    }
+  }
+  return out.slice(0, 4);
+}
+
+/** Dải màu theo giờ: cao hơn 12 tháng tại đây thì sáng hơn. */
+function stormBars(rows, bands) {
+  const marks = bands ? [bands.p50, bands.p80, bands.p95, bands.p99] : [0.5, 0.7, 0.85, 0.95];
+  const out = rows.map(r => {
+    const lv = stormLevel(r.risk, bands);
+    const t = Math.max(0, Math.min(1, r.risk));
+    return `<i class="storm-bar ${lv ? lv.cls : ''}" style="height:${(14 + t * 34).toFixed(0)}%" title="${esc(fmtHour(r.t))}: chỉ số ${r.risk.toFixed(2)}${lv ? ' · ' + lv.name : ''}"></i>`;
+  }).join('');
+  return out + '<p class="tiny muted">Cột cao là giờ có chỉ số cao; màu theo mức: xanh lá là dưới'
+    + ' p80, vàng là p80–p95, cam là p95–p99, tím là trên p99 của 12 tháng tại điểm tham chiếu'
+    + (marks.length ? ` (lần lượt ${marks.map(m => m.toFixed(2)).join(' / ')})` : '') + '.</p>';
+}
 async function loadAirMassAndRivers() {
   const token = ++levelsToken;
   levels = null; rivers = null;
@@ -818,6 +1052,9 @@ async function loadAirMassAndRivers() {
   }).catch(() => { if (riverBox) riverBox.innerHTML = '<p class="small">Không lấy được dữ liệu sông.</p>'; });
   const tn = $('massMeta');
   if (tn) tn.textContent = notes.length ? notes.join(' ') : (levels ? `${levels.time.length} giờ · 7 hệ thống` : '—');
+  // Chỉ số đối lưu: gọi riêng và không chặn, vì hết hạn mức Open-Meteo sẽ làm
+  // nó hỏng trong khi khối khí và sông vẫn cần hiện.
+  loadStorm().catch(() => {});
 }
 
 /* ---------- A. vi tri thiet bi ---------- */
@@ -3087,6 +3324,9 @@ const ANIM_NEEDS = {
   temp: ['temperature_2m'],
   cloud: ['cloud_cover'],
   rain: ['precipitation'],
+  // Ba trường cho một chỉ số ghép. Cần đủ cả ba vì thiếu một thành phần thì
+  // cách hiệu chuẩn khác nhau, và so sánh giữa các mức màu sẽ vô nghĩa.
+  storm: ['cape', 'lifted_index', 'convective_inhibition'],
 };
 
 /*
@@ -3111,6 +3351,12 @@ const ANIM_SCALES = {
     label: 'Lượng mưa', unit: 'mm/giờ', kind: 'scalar', field: 'precipitation',
     stops: [[0.02, '#1b3a6b'], [0.5, '#2f7fc1'], [2, '#43b06b'], [5, '#e8d24a'],
             [10, '#e0762f'], [20, '#d03434'], [40, '#b03ad0']],
+  },
+  storm: {
+    label: 'Nguy cơ bão tố', unit: 'điểm 0–1', kind: 'scalar', field: 'storm_index',
+    derived: true,
+    stops: [[0.15, '#1d3b2f'], [0.35, '#3f7a44'], [0.5, '#c9c04a'], [0.65, '#ef9a35'],
+            [0.8, '#e0503a'], [0.92, '#b02fb0'], [1, '#e8e0ff']],
   },
 };
 
@@ -3262,6 +3508,22 @@ async function fetchAnimGrid(varKey, tier, center, onProgress) {
       for (let h = 0; h < hours.length; h++) flat[base + h] = arr[h] == null ? NaN : arr[h];
     }
     grid.fields[f] = flat;
+  }
+  // Biến ghép: gộp ba trường thô thành MỘT trường để phần vẽ không phải biết
+  // chuyện gì. Làm ở đây chứ không ở lúc vẽ vì trường ghép không phụ thuộc khung
+  // hình — tính một lần cho cả 36 giờ.
+  if (varKey === 'storm' && grid.fields.cape) {
+    const nh2 = hours.length;
+    const idx = new Float32Array(n * n * nh2).fill(NaN);
+    for (let i = 0; i < n * n * nh2; i++) {
+      const r = E.lightningIndex({
+        cape: grid.fields.cape[i],
+        liftedIndex: grid.fields.lifted_index ? grid.fields.lifted_index[i] : null,
+        convectiveInhibition: grid.fields.convective_inhibition ? grid.fields.convective_inhibition[i] : null,
+      });
+      if (r) idx[i] = r.risk;
+    }
+    grid.fields.storm_index = idx;
   }
   anim.cache.set(key, grid);
   return grid;
@@ -3682,7 +3944,9 @@ function animValueAt(containerPoint) {
     if (!g.fields[spec.field]) return null;
     const v = animSample(g, spec.field, fx, fy, hour);
     if (v == null) return null;
-    out.value = `${E.round(v, 1)} ${spec.unit}`;
+    out.value = anim.varKey === 'storm'
+      ? `${E.round(v, 2)} (0–1) — mức ${esc((stormLevel(v, (stormReference() || {}).loc?.bands)?.name || '—').toLowerCase())}`
+      : `${E.round(v, 1)} ${spec.unit}`;
     out.color = animColour(spec.stops, v);
   }
   return out;
@@ -3740,6 +4004,14 @@ function animLegendHtml() {
   const ticks = s.map((st, i) => (i % 2 === 0 || i === s.length - 1
     ? `<span style="left:${(i / (s.length - 1)) * 100}%">${st[0]}</span>` : '')).join('');
   const g = anim.grid;
+  if (anim.varKey === 'storm') {
+    return '<strong>Nguy cơ bão tố (điểm 0–1)</strong>'
+      + '<span class="anim-ramp" style="background:linear-gradient(90deg,' + s.map((st, i) => `${st[1]} ${(i / (s.length - 1)) * 100}%`).join(', ') + ')"></span>'
+      + '<span class="tiny">Ghép từ CAPE, lifted index và CIN của mô hình — là chỉ số năng lượng đối lưu, '
+      + 'KHÔNG phải dự báo tia sét (không có nguồn mở nào cấp dữ liệu sét ở Việt Nam). '
+      + 'Mức đã hiệu chuẩn trên 12 tháng và chấm điểm ở tab Phương pháp. '
+      + stormSkillSentence() + ' Dùng để biết lúc nào khí quyển dễ bốc lên, KHÔNG dùng làm cảnh báo.</span>';
+  }
   return `<strong>${spec.label} (${spec.unit})</strong>`
     + `<span class="anim-ramp" style="background:linear-gradient(90deg,${bar})">${ticks}</span>`
     + `<span class="tiny">Lưới ${g ? g.n + '×' + g.n : '—'} điểm, mỗi ô ${g ? g.km : '—'} km`
@@ -3801,6 +4073,15 @@ async function animRefreshNow(force) {
     if (lg) lg.innerHTML = animLegendHtml();
     animSeedParticles(anim.grid);
     animPlaceCanvas();
+    /*
+     * Vẽ ngay sau khi nạp, không chờ vòng lặp khung hình. Ở tab chạy nền
+     * requestAnimationFrame bị hãm nhịp, nên nếu chờ thì bản đồ cứ hiện trường
+     * của lưới CŨ trong khi chú giải đã nói về lưới mới — trang mâu thuẫn với
+     * chính nó. Khi vẽ xong thì đánh dấu đã vẽ để vòng lặp không vẽ lại ngay.
+     */
+    animDrawField(anim.grid, anim.hour);
+    anim.drawnAt = performance.now();
+    anim.dirty = false;
     if (msg) msg.textContent = '';
   } catch (e) {
     // Giữ nguyên lưới cũ: hơn là mất hẳn lớp động vì một lần tải hỏng.
@@ -3921,12 +4202,19 @@ function animSetVar(key) {
   const lbl = $('animParticlesNote');
   if (lbl) lbl.hidden = key !== 'wind';
   if (!anim.on) { setAnimLayer(true); return; }
-  // Vẽ ngay vài chục vòng hạt. Ở tab chạy nền, requestAnimationFrame bị hãm
-  // nhịp, nên nếu chờ vòng lặp thì bật hạt gió ra mà bản đồ vẫn trống — người
-  // dùng sẽ tưởng công tắc hỏng.
+  /*
+   * Vẽ lại NGAY, không chờ vòng lặp khung hình.
+   *
+   * Ở tab chạy nền, requestAnimationFrame bị hãm nhịp, nên nếu chờ vòng lặp thì
+   * đổi sang biến khác mà bản đồ vẫn hiện trường của biến cũ — chú giải đã đổi
+   * nhưng hình thì không, tức trang tự mâu thuẫn với chính nó. Hạt gió cũng vậy:
+   * bật ra mà bản đồ trống thì người dùng tưởng công tắc hỏng.
+   */
+  if (anim.grid) animDrawField(anim.grid, anim.hour);
   if (anim.particlesOn && anim.grid) {
     for (let i = 0; i < 40; i++) animDrawParticles(anim.grid, anim.hour, 16);
   }
+  animPlaceCanvas();
 }
 
 /** Bật/tắt đường đồng mức và hạt gió. */

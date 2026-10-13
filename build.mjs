@@ -15,5 +15,14 @@ try{
 }catch{
   html=html.replace('/*NCHMF*/',()=>JSON.stringify({collectedAt:null,categories:[],errors:['chua thu thap'],stub:true}));
 }
+// Chi so doi luu: thieu file (chua chay ltbench.mjs) van build duoc, UI tu hien
+// "chua co du lieu" thay vi ban trang.
+try{
+  let lt=await fs.readFile(new URL('lightning.json',dir),'utf8');
+  lt=lt.replace(/</g,'\\u003c');
+  html=html.replace('/*LIGHTNING*/',()=>lt);
+}catch{
+  html=html.replace('/*LIGHTNING*/',()=>JSON.stringify({stub:true,locations:{},summary:{},limits:['chua chay ltbench.mjs']}));
+}
 await fs.writeFile(new URL('index.html',dir),html);
 console.log('Standalone HTML assembled:',Buffer.byteLength(html),'bytes');

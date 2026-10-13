@@ -2126,6 +2126,394 @@
     };
   }
 
+/* ---------------------------------------------------------------------
+   * Chỉ số nguy cơ bão tố và động sét
+   * =====================================================================
+   *
+   * KHÔNG có nguồn mở nào cấp "dự báo động sét" cho Việt Nam. Open-Meteo có
+   * biến tên `lightning_potential` và `thunderstorm_probability` nhưng đo được
+   * ở cả 7 mô hình và cả 8 địa điểm thì đều trả null — có tên, không có số.
+   * Nên thứ chúng ta dựng được là một CHỈ SỐ NĂNG LƯỢNG HỘI TỤ, không phải dự
+   * báo sét. Trang này ghi rõ như vậy, và không bao giờ gọi nó là "dự báo sét".
+   *
+   * Ba thành phần, đúng như khí tượng thường dùng để đánh giá đối lưu sâu:
+   *   CAPE      năng lượng nổi trọng lực; tần suất điện tăng theo căn bậc hai
+   *             của nó (Price & R, 1977), nên dùng căn bậc hai chứ không dùng
+   *             tuyến tính — 4000 J/kg không gấp đôi nguy cơ của 2000.
+   *   LI        lifted index ở 500 hPa: lớp giữa ổn định hay không. Bất ổn khi
+   *             LI âm, càng âm càng mạnh.
+   *   CIN       năng lượng cản phía dưới: "nắp". CIN lớn là nắp kín, dù trời
+   *             nóng thì bão vẫn không bùng được.
+   *
+   * Ghép bằng TRUNG BÌNH NHÂN có trọng số và chuẩn hoá lại theo đúng những
+   * thành phần mà mô hình thật sự có. Trung bình nhân vì một nhân t�� kìm
+   * phải kìm được cả tổng, không phải chỉ một phần của nó. Chuẩn hoá lại vì
+   * CAPE chỉ có ở 6/7 mô hình, LI chỉ ở GFS, CIN ở GFS và UKMO — nếu không
+   * chuẩn hoá thì mô hình thiếu thành phần sẽ có điểm thấp giả do thiếu dữ
+   * liệu chứ không phải do thời tiết.
+   */
+
+  const CAPE_REF = 2500;   // J/kg — trên mức này thì căn bậc hai bão hoà
+  const LI_LO = -6, LI_HI = 4;
+  const CIN_MAX = 200;     // J/kg — trên mức này coi như kín
+
+  function lightningIndex(o) {
+    if (!o) return null;
+    const parts = {};
+
+    if (finite(o.cape)) {
+      // Căn bậc hai rồi chuẩn hoá: quan hệ thực nghiệm, và trần lại để một
+      // giá trị CAPE khổng lồ của mô hình không nuốt hết dải màu.
+      parts.cape = clamp(Math.sqrt(Math.max(0, o.cape)) / Math.sqrt(CAPE_REF), 0, 1);
+    }
+    if (finite(o.liftedIndex)) {
+      parts.li = clamp((LI_HI - o.liftedIndex) / (LI_HI - LI_LO), 0, 1);
+    }
+    if (finite(o.convectiveInhibition)) {
+      // Sàn 0,15 vì CIN vô hạn không phải hiện tượng khả thi, và nắp kín vẫn
+      // để lại một chút đối lưu nông.
+      parts.cin = clamp(1 - Math.max(0, o.convectiveInhibition) / CIN_MAX, 0.15, 1);
+    }
+
+    const W = { cape: 0.60, li: 0.25, cin: 0.15 };
+    let sum = 0, wsum = 0;
+    for (const k of ['cape', 'li', 'cin']) {
+      if (!finite(parts[k])) continue;
+      sum += W[k] * Math.log(parts[k]);   // trung bình nhân qua log
+      wsum += W[k];
+    }
+    if (!wsum) return null;
+    const ingredients = ['cape', 'li', 'cin'].filter(k => finite(parts[k]));
+    return {
+      risk: clamp(Math.exp(sum / wsum), 0, 1),
+      ingredients,
+      // partial nghĩa là CHƯA ĐỦ ba thành phần, nên giao diện phải nói thay vì
+      // im lặng. Trước đây nó kiểm tra ngược (thiếu CAPE) và luôn sai.
+      partial: ingredients.length < 3,
+    };
+  }
+
+  /** Hạng Spearman: tương quan thứ hạng, chịu được đuôi dày như mưa. */
+  function spearman(a, b) {
+    const pairs = [];
+    for (let i = 0; i < a.length; i++) {
+      if (finite(a[i]) && finite(b[i])) pairs.push([a[i], b[i]]);
+    }
+    const n = pairs.length;
+    if (n < 5) return null;
+    const rank = vals => {
+      const idx = vals.map((v, i) => [v, i]).sort((x, y) => x[0] - y[0]);
+      const r = new Array(vals.length);
+      for (let i = 0; i < n;) {
+        let j = i;
+        while (j + 1 < n && idx[j + 1][0] === idx[i][0]) j++;
+        const avg = (i + j) / 2 + 1;      // trung bình thứ hạng cho giá trị bằng nhau
+        for (let k = i; k <= j; k++) r[idx[k][1]] = avg;
+        i = j + 1;
+      }
+      return r;
+    };
+    const ra = rank(pairs.map(p => p[0]));
+    const rb = rank(pairs.map(p => p[1]));
+    const ma = meanS(ra), mb = meanS(rb);
+    let num = 0, da = 0, db = 0;
+    for (let i = 0; i < n; i++) {
+      const x = ra[i] - ma, y = rb[i] - mb;
+      num += x * y; da += x * x; db += y * y;
+    }
+    return da > 0 && db > 0 ? clamp(num / Math.sqrt(da * db), -1, 1) : null;
+  }
+
+  /**
+   * Chấm chỉ số như một dự báo nhị phân: "giờ này có mưa đối lưu mạnh không".
+   *
+   * Sự thật dùng ở đây là lượng mưa ERA5, KHÔNG phải số đo sét — không có nguồn
+   * mở nào cho dữ liệu sét ở Việt Nam. Vậy phép đo là: giờ nào có mưa đối lưu
+   * mạnh trong phân tích lại, và chỉ số có nhận ra không. Đây là phép đo KHẢ
+   * NĂNG PHÂN BIỆT, không phải phép đo sai số dự báo lead-N; lý do nằm ở
+   * lightningIndex và trong thẻ "Giới hạn" trên giao diện.
+   *
+   * rows[i].risk phải là XÁC SUẤT đã hiệu chuẩn, không phải điểm thô. Ở đây
+   * từng kẹp nó ở mức sàn 0,02 và thành ra tệ một cách vô lý: tần suất nền thật
+   * là 0,008, nên sàn 0,02 đã gấp hơn hai lần tần suất nền, và Brier của một
+   * mô hình hoàn hảo cũng ra 0,97 — BSS âm hơn một trăm chỉ vì cái kẹp ấy.
+   * Giờ chỉ chặn ở hai đầu vì log-rất cần, còn Brier thì không cần kẹp.
+   *
+   * Ngưỡng cảnh báo đặt bằng TẦN SUẤT NỀN của chính tập chấm, tức cảnh báo đúng
+   * bằng số sự kiện. Cách này so sánh được giữa các sự kiện hiếm và thường, và
+   * trả lời đúng câu hỏi người dùng quan tâm: "trong những lúc được cảnh báo thì
+   * có thật sự xảy ra không".
+   */
+  function lightningVerify(rows, threshold) {
+    const th = threshold == null ? 5 : threshold;
+    const clean = rows.filter(r => finite(r.risk) && finite(r.obs));
+    if (clean.length < 50) return { n: clean.length, threshold: th, insufficient: true };
+
+    let base = 0, n = 0;
+    for (const r of clean) { n++; if (r.obs >= th) base++; }
+    const baseRate = base / n;
+    const warnAt = Math.min(0.95, baseRate);
+
+    let hit = 0, fa = 0, miss = 0, sumSq = 0, sumLog = 0, sumRisk = 0;
+    const bucket = Array.from({ length: 10 }, () => ({ n: 0, ev: 0 }));
+    for (const r of clean) {
+      const ev = r.obs >= th ? 1 : 0;
+      const p = clamp(r.risk, 1e-6, 1 - 1e-6);
+      sumRisk += p;
+      // Brier là trung bình bình phương sai lệch, KHÔNG phải tổng y·p+(1−y)(1−p).
+      // Công thức sai đó cho Brier ≈ 1 với mọi dự báo hợp lý, tức BSS âm hàng
+      // trăm dù hiệu chuẩn đã đúng.
+      sumSq += (p - ev) ** 2;
+      sumLog += ev ? Math.log(p) : Math.log(1 - p);   // âm của log-rất
+      const warn = p >= warnAt ? 1 : 0;
+      if (ev && warn) hit++;
+      else if (ev) miss++;
+      else if (warn) fa++;
+      const b = Math.min(9, Math.max(0, Math.floor(p * 10)));
+      bucket[b].n++; bucket[b].ev += ev;
+    }
+    const brier = sumSq / n;
+    const bss = baseRate > 0 && baseRate < 1 ? 1 - brier / (baseRate * (1 - baseRate)) : 0;
+    const warnN = hit + fa;
+    return {
+      n, threshold: th, events: base, baseRate: round(baseRate, 5),
+      warnAt: round(warnAt, 5), warnings: warnN,
+      brier: round(brier, 6), bss: round(bss, 4),
+      logLoss: round(-sumLog / n, 5),
+      hitRate: base ? round(hit / base, 4) : null,
+      falseAlarmRate: warnN ? round(fa / warnN, 4) : null,
+      precision: warnN ? round(hit / warnN, 4) : null,
+      meanProb: round(sumRisk / n, 5),
+      spearman: round(spearman(clean.map(r => r.risk), clean.map(r => r.obs)), 4),
+      reliability: bucket.map((b, i) => b.n ? { p: round((i + 0.5) / 10, 1), n: b.n, obs: round(b.ev / b.n, 5) } : null)
+        .filter(Boolean),
+    };
+  }
+
+  /**
+   * Dải nguy cơ, lấy từ phân vị CHÍNH CỦA địa điểm trong 12 tháng đã kiểm chứng.
+   *
+   * Đặt ngưỡng toàn cục bừa sẽ vô lý: Đà Lạt và Nha Trang cùng một con số
+   * nghĩa là hai chuyện khác nhau, còn Rừng Tràm thì gần như lúc nào cũng cao.
+   * Ngưỡng theo phân vị của chính địa điểm thì "90% trong 12 tháng" luôn nghĩa
+   * là đúng thứ đó tại nơi đó — cùng logic đã dùng cho ngưỡng báo lũ GloFAS.
+   */
+  function lightningBands(values) {
+    const v = values.filter(finite);
+    if (v.length < 200) return null;
+    return {
+      p50: round(quantile(v, 0.5), 4),
+      p80: round(quantile(v, 0.8), 4),
+      p95: round(quantile(v, 0.95), 4),
+      p99: round(quantile(v, 0.99), 4),
+      max: round(Math.max(...v), 4),
+      n: v.length,
+    };
+  }
+
+/** Xếp mức cảnh báo từ vị trí của giá trị trong phân bố 12 tháng của địa điểm. */
+  function lightningLevel(risk, bands) {
+    if (!finite(risk) || !bands) return null;
+    if (risk >= bands.p99) return 'p99';
+    if (risk >= bands.p95) return 'p95';
+    if (risk >= bands.p80) return 'p80';
+    if (risk >= bands.p50) return 'p50';
+    return 'low';
+  }
+
+  const LIGHTNING_LEVELS = [
+    { id: 'low', name: 'Thấp', note: 'dưới trung vị của 12 tháng tại địa điểm này' },
+    { id: 'p50', name: 'Trung bình', note: 'từ trung vị trở lên' },
+    { id: 'p80', name: 'Khá', note: 'vượt 80% số giờ trong 12 tháng' },
+    { id: 'p95', name: 'Cao', note: 'vượt 95% số giờ trong 12 tháng' },
+    { id: 'p99', name: 'Rất cao', note: 'vượt 99% số giờ trong 12 tháng' },
+  ];
+
+/* ---------------------------------------------------------------------
+   * Hiệu chuẩn chỉ số thành xác suất
+   * =====================================================================
+   *
+   * Điểm thô của chỉ số KHÔNG phải xác suất: giá trị 0,8 không có nghĩa là
+   * "80% khả năng". Đưa nó thẳng vào Brier sẽ ra kết quả vô nghĩa — và đã
+   * cho BSS âm hàng chục lần chỉ vì lý do đó. Muốn chấm được thì phải
+   * hiệu chuẩn trên tập HUẤN LUYỆN trước, rồi mới chấm trên tập thử nghiệm.
+   *
+   * Hồi quy logistic một biến: p = 1/(1+exp(-(a + b·x))). Giữ đúng một dạng
+   * hàm đơn điệu vì chỉ số chỉ là một số; thêm biến vào sẽ bắt đầu học
+   * những thứ mà ta không kiểm chứng được.
+   */
+
+  function logistic(a, b, x) {
+    const z = Math.max(-35, Math.min(35, a + b * x));
+    return 1 / (1 + Math.exp(-z));
+  }
+
+  /**
+   * Hồi quy logistic một biến bằng gradient giảm dốc có bước học.
+   *
+   * Đã thử Newton trước và nó PHÁNG: ở tần suất sự kiện thấp (~1%) màu số gần
+   * bằng 0, bước Newton văng đến trên 30 và xác suất bị đẩy lên 1 ở mọi giá trị,
+   * cho Brier ≈ 1 và BSS âm hàng trăm. Gradient giảm dốc có giới hạn bước thì
+   * hội tụ chậm nhưng không bao giờ văng, và ở bài này chỉ có một tham số cần
+   * tìm nên chậm không phải vấn đề.
+   *
+   * x được chuẩn hoá về trung bình 0 và phương sai 1 trước khi fit, để bước học
+   * dùng chung được bất kể thang đo của chỉ số.
+   */
+  function logisticFit(x, y) {
+    const n = x.length;
+    if (n < 200) return null;
+    let pos = 0, sx = 0;
+    for (let i = 0; i < n; i++) { if (y[i]) pos++; sx += x[i]; }
+    const rate = pos / n;
+    if (!(rate > 0) || rate >= 1) return null;
+    let mx = sx / n, varX = 0;
+    for (let i = 0; i < n; i++) varX += (x[i] - mx) ** 2;
+    varX /= n;
+    if (!(varX > 1e-12)) return null;          // biến hằng: không có gì để học
+    const z = new Array(n);
+    for (let i = 0; i < n; i++) z[i] = (x[i] - mx) / Math.sqrt(varX);
+
+    // Khởi tạo từ tỉ lệ nền: đúng khi hệ số bằng 0, mô hình không có thông tin.
+    let a = Math.log(rate / (1 - rate)), b = 0;
+    let lr = 2;
+    for (let it = 0; it < 4000; it++) {
+      let ga = 0, gb = 0;
+      for (let i = 0; i < n; i++) {
+        const p = logistic(a, b, z[i]);
+        const r = (y[i] ? 1 : 0) - p;
+        ga += r; gb += r * z[i];
+      }
+      ga /= n; gb /= n;
+      const na = a + lr * ga, nb = b + lr * gb;
+      // Hàm log-rất phải tăng; nếu bước làm tăng lên thì giảm một nửa và thử lại.
+      let ll = 0;
+      for (let i = 0; i < n; i++) {
+        const p = logistic(na, nb, z[i]);
+        ll += Math.log(Math.max(y[i] ? p : 1 - p, 1e-12));
+      }
+      let ll0 = 0;
+      for (let i = 0; i < n; i++) {
+        const p = logistic(a, b, z[i]);
+        ll0 += Math.log(Math.max(y[i] ? p : 1 - p, 1e-12));
+      }
+      // Chỉ nhận bước nếu log-rất thực sự tăng, nếu không giảm một nửa và thử lại.
+      if (!(ll > ll0)) { lr *= 0.5; if (lr < 1e-6) break; continue; }
+      const da = Math.abs(na - a) + Math.abs(nb - b);
+      a = na; b = nb;
+      lr = Math.min(4, lr * 1.15);
+      if (da < 1e-9) break;
+    }
+    if (!finite(a) || !finite(b)) return null;
+    return { a: round(a, 6), b: round(b, 6), n, baseRate: round(rate, 5), sdX: round(Math.sqrt(varX), 6), meanX: round(mx, 6) };
+  }
+
+  /** Áp bộ hệ số hiệu chuẩn lên một loạt điểm thô (dùng đúng meanX/sdX lúc fit). */
+  function applyCalibration(cal, values) {
+    if (!cal) return values.map(() => null);
+    const sd = cal.sdX || 1, mx = cal.meanX || 0;
+    return values.map(v => finite(v) ? logistic(cal.a, cal.b, (v - mx) / sd) : null);
+  }
+
+/* ---------------------------------------------------------------------
+   * Hiệu chuẩn đồng ý (isotonic)
+   * =====================================================================
+   *
+   * Vì sao cần bên cạnh logistic: chỉ số phân biệt được rõ ở NHÓP CAO —
+   * ở Đà Lạt, giờ thuộc nhóm 20% cao nhất có mưa ở 32% số giờ so với 6,5% ở
+   * nhóm thấp — nhưng quan hệ đó không phải đường thẳng nên logistic một tham số
+   * làm phẳng mất đuôi, và BSS về không. Isotonic làm đúng việc đó: xếp các
+   * giá trị theo bậc, gộp dần từng khối có tần suất chéo nhau, cho một đường
+   * bậc thang đơn điệu khớp tần suất thực nghiệm.
+   *
+   * Nguy cơ quen thuộc: bậc thang quá nhiều khúc thì học thuộc tập huấn
+   * luyện. Vì vậy số khối bị giới hạn, và điểm gấp phải đạt một số giờ tối
+   * thiểu mới giữ lại.
+   */
+
+  /**
+   * Pool-adjacent-violators: gộp hai khối liền kề khi tần suất không còn đơn
+   * điệu, lặp cho tới khi chuỗi tần suất không tăng nữa.
+   */
+  function pav(y, w) {
+    // Mỗi khối mang khoảng chỉ số bin của nó. Nút của khối hợp nhất phải là
+    // TRUNG ĐIỂM của đoạn bin gộp lại — KHÔNG được lấy trung bình có trọng số
+    // các nút, vì làm vậy nút có thể lệch thứ tự và tra cứu nhị phân tìm kiếm
+    // trên dãy chưa sắp xếp sẽ cho kết quả ngược (xác suất giảm khi x tăng).
+    const val = [], wt = [], lo = [], hi = [];
+    for (let i = 0; i < y.length; i++) {
+      // ĐẨY khối vào trước, rồi mới gộp từ cuối. Cách cũ kiểm tra vi phạm TRƯỚC
+      // khi đẩy, nên cặp khối cuối cùng không bao giờ được xét và chuỗi tần suất
+      // cuối cùng có thể đi xuống — tức đường hiệu chuẩn không còn đơn điệu.
+      val.push(y[i]); wt.push(w[i]); lo.push(i); hi.push(i);
+      while (val.length >= 2) {
+        const n = val.length;
+        if (!(val[n - 2] / wt[n - 2] > val[n - 1] / wt[n - 1])) break;
+        const l2 = lo.pop(), h2 = hi.pop();
+        const l1 = lo.pop();
+        val[n - 2] += val[n - 1];
+        wt[n - 2] += wt[n - 1];
+        val.pop(); wt.pop();
+        lo.push(l1); hi.push(h2);
+      }
+    }
+    return { val, wt, lo, hi };
+  }
+
+  function isotonicCalibrate(x, y, maxBins = 20, minPerBin = 120) {
+    const n = x.length;
+    if (n < 500) return null;
+    let pos = 0;
+    for (let i = 0; i < n; i++) if (y[i]) pos++;
+    const baseRate = pos / n;
+    if (!(baseRate > 0) || baseRate >= 1) return null;
+
+    // Các điểm gấp: phân vị của x, chia đều số khối.
+    const sorted = [...x].sort((a, b) => a - b);
+    const knots = [];
+    for (let b = 0; b <= maxBins; b++) knots.push(sorted[Math.min(n - 1, Math.floor((b / maxBins) * n))]);
+    // Bỏ các điểm gấp trùng nhau — chúng không tách được nhóm nào.
+    const uniq = [...new Set(knots)].sort((a, b) => a - b);
+
+    const mid = [], ry = [], rw = [];
+    for (let b = 0; b < uniq.length - 1; b++) {
+      const lo = uniq[b], hi = uniq[b + 1];
+      if (!(hi > lo)) continue;
+      let s = 0, k = 0;
+      for (let i = 0; i < n; i++) {
+        if (x[i] >= lo && x[i] < hi) { s += y[i] ? 1 : 0; k++; }
+      }
+      if (k < minPerBin) continue;        // khối quá mỏng thì giá trị nhiễu
+      mid.push((lo + hi) / 2); ry.push(s); rw.push(k);
+    }
+    if (!mid.length) return null;
+    const { val, wt, lo, hi } = pav(ry, rw);
+    // Nút của mỗi khối là trung điểm của đoạn bin mà khối đó gộp, nên dãi nút
+    // luôn tăng nghiêm và tra cứu nhị phân tìm kiếm mới đúng.
+    const blockKnots = lo.map((a, i) => (mid[a] + mid[hi[i]]) / 2);
+    // val[i] là TỔNG số có, wt[i] là TỔNG số giờ của khối sau khi gộp — tần suất
+    // của khối là tổng chia tổng.
+    return {
+      knots: blockKnots,
+      values: val.map((v, i) => Math.max(1e-6, Math.min(1 - 1e-6, v / (wt[i] || 1)))),
+      n, baseRate: round(baseRate, 5), bins: mid.length,
+    };
+  }
+
+  function applyIsotonic(cal, values) {
+    if (!cal) return values.map(() => null);
+    return values.map(v => {
+      if (!finite(v)) return null;
+      const k = cal.knots;
+      if (v <= k[0]) return cal.values[0];
+      if (v >= k[k.length - 1]) return cal.values[cal.values.length - 1];
+      let lo = 0, hi = k.length - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (k[m] <= v) lo = m; else hi = m; }
+      const t = (v - k[lo]) / (k[hi] - k[lo] || 1);
+      return cal.values[lo] + (cal.values[hi] - cal.values[lo]) * t;
+    });
+  }
+
   /** Wind barbs: line length and head count encode speed, rotation shows direction. */
   function windBarb(speedKmh, dirDeg) {
     if (!finite(speedKmh) || !finite(dirDeg)) return null;
@@ -2153,5 +2541,8 @@
     evaluate, hourOf, dayOfYear, regimeKey, REGIME_EDGES,
     thickness, toUms, offsetLatLon, trajectory, bearingDeg, nearestOnTrack,
     airMass, frontalPassage, riverRisk, floodLevels, FLOOD_BANDS,
+    lightningIndex, lightningVerify, lightningBands, lightningLevel, spearman,
+    logistic, logisticFit, applyCalibration, isotonicCalibrate, applyIsotonic,
+    CAPE_REF, LI_LO, LI_HI, CIN_MAX, LIGHTNING_LEVELS,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

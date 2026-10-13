@@ -47,6 +47,11 @@
 <article class="panel"><div class="section-head"><div><p class="eyebrow">PHÂN LOẠI KHỐI KHÔNG</p><h3>Khối không khí đang phủ lên khu vực</h3></div></div>
 <div id="airMassBox"><p class="muted">Đang tải…</p></div></article>
 
+<article class="panel"><div class="section-head"><div><p class="eyebrow">NĂNG LƯỢNG ĐỐI LƯU · CAPE</p><h3>Nguy cơ bão tố và động sét</h3></div><span class="small" id="stormMeta">—</span></div>
+<div id="stormBox"><p class="muted">Đang tải…</p></div>
+<p class="small"><strong>Đây không phải dự báo sét.</strong> Không có nguồn dữ liệu mở nào cung cấp dự báo tia sét cho Việt Nam — biến <code>lightning_potential</code> của Open-Meteo có tên nhưng đo ở cả bảy mô hình và cả tám địa điểm đều trả <code>null</code>. Thứ ở đây là <strong>chỉ số năng lượng đối lưu</strong>, dựng từ CAPE, lifted index và CIN của mô hình, và nó được chấm điểm công khai ở tab Phương pháp — kể cả những chỗ nó không có tác dụng.</p>
+<p class="small" id="stormLimits"></p></article>
+
 <article class="panel"><div class="section-head"><div><p class="eyebrow">LƯU LƯỢNG &amp; MỰC NƯỚC SÔNG · GloFAS</p><h3>Các con sông quanh đây</h3></div><span class="small" id="riverMeta">—</span></div>
 <div class="table-wrap"><table><thead><tr><th>Sông / vị trí</th><th>Lưu lượng hôm nay</th><th>Mực nước quy ước</th><th>Xếp trong 12 tháng</th><th>So TB 30 ngày</th><th>Dự báo +24h</th><th>Cảnh báo tham chiếu</th></tr></thead><tbody id="riverLevels"><tr><td colspan="7" class="muted">Đang tải…</td></tr></tbody></table></div>
 <p class="small">Tên sông tra từ OSM theo đường nước có tên gần ô lưới GloFAS: <span id="riverNameMeta">—</span>. Ô không có tên trong OSM thì ghi rõ là chưa có tên, không đoán theo vùng.</p>
@@ -110,6 +115,29 @@
 <article class="panel"><span class="method-index">04 / RẤT NGẮN HẠN</span><h3>Radar, vệ tinh &amp; đối lưu</h3><p>Nowcasting theo dõi sự dịch chuyển và phát triển của mưa bằng radar, vệ tinh và số liệu trạm. HRRR là hệ thống dự báo khu vực của NOAA; phạm vi từng hệ thống cần kiểm tra trước khi dùng.</p><p class="small">Dự báo mưa dông cục bộ tại Việt Nam cần dữ liệu radar và quan trắc địa phương. Mô hình toàn cầu không giải quyết đầy đủ khác biệt từng phường hay từng thửa ruộng.</p><a href="https://www.emc.ncep.noaa.gov/emc/pages/numerical_forecast_systems/hrrr.php" target="_blank" rel="noopener">NOAA · HRRR</a></article>
 <article class="panel"><span class="method-index">05 / HIỆU CHỈNH</span><h3>Thống kê sau dự báo</h3><p>Hiệu chỉnh sai lệch, MOS, EMOS, hiệu chỉnh phân vị và kết hợp mô hình nhằm cải thiện dự báo tại điểm cụ thể. Cần tách dữ liệu huấn luyện và kiểm tra theo thời gian.</p><p class="small">Phần kiểm thử triển khai EMOS hồi quy ridge chọn bằng kiểm chứng chặn, hiệu chỉnh phân phối theo độ bất đồng mô hình, và bảy hệ thống thay vì ba. Dự báo trực tiếp dùng đúng bộ hệ số đã kiểm thử.</p><a href="https://open-meteo.com/en/docs/previous-runs-api" target="_blank" rel="noopener">Nguồn dự báo quá khứ</a></article>
 <article class="panel"><span class="method-index">06 / ỨNG DỤNG</span><h3>Hiển thị và quyết định</h3><p>Windy, Ventusky và các ứng dụng thời tiết giúp người dùng xem bản đồ, dự báo và sản phẩm từ các nhà cung cấp. Giao diện tốt không tự tạo ra độ chính xác của mô hình.</p><p class="small">Giới hạn còn lại: tám địa điểm, một năm dữ liệu, đối chiếu bằng tái phân tích chứ không phải trạm đo. Chưa có khoảng tin cậy bootstrap cho kiểm định nhiều mùa hay kiểm chứng độc lập theo sự kiện.</p><a href="https://wmo.int/site/science-action/weather-forecasts-and-early-warnings" target="_blank" rel="noopener">WMO · Dự báo và cảnh báo sớm</a></article></div>
+<article class="panel"><span class="method-index">07 / ĐỐI LƯU</span><h3>Chỉ số năng lượng đối lưu — và những gì nó không làm được</h3>
+<p>Ở mục Khối khí &amp; sông có một chỉ số ghép từ ba trường của mô hình: <strong>CAPE</strong> (năng lượng nổi trọng lực), <strong>lifted index</strong> ở 500 hPa (bất ổn giữa khí quyển) và <strong>CIN</strong> (năng lượng cản, tức "nắp" phía dưới). Ba thứ này được trộn bằng <strong>trung bình nhân có trọng số</strong> — 0,60 / 0,25 / 0,15 — rồi chuẩn hoá lại theo đúng những thành phần mà mô hình thật sự có. Dùng trung bình nhân vì một "nắp" kín phải kìm được cả tổng, không phải chỉ một phần của nó.</p>
+<p>CAPE được biến đổi căn bậc hai trước khi chuẩn hoá, theo quan hệ thực nghiệm giữa tần suất điện và CAPE: 4000 J/kg không phải là "gấp đôi nguy cơ" của 2000 J/kg.</p>
+<h4>Chỉ số này được chấm thế nào</h4>
+<p>Sự thật dùng để chấm là <strong>lượng mưa ERA5</strong> cùng giờ, không phải số đo tia sét — không có nguồn mở nào cho dữ liệu sét ở Việt Nam. Ba phép đo được công bố đầy đủ ở <code>dist/lightning.json</code>: độ nâng (ở nhóm 20% giờ có chỉ số cao nhất, bao nhiêu phần trăm giờ có mưa so với nhóm còn lại), hệ số thứ hạng ρ, và BSS so với khí quyết định sau khi hiệu chuẩn xác suất trên tập huấn luyện.</p>
+<p>Các kết luận, kể cả kết luận không thuận lợi:</p>
+<ul>
+<li><strong>Có tín hiệu thật ở phần đuôi trên.</strong> Trung vị 8 địa điểm: nhóm giờ cao nhất có mưa nhiều gấp khoảng 2,1 lần nhóm thấp, và có lợi ở 7/8 địa điểm.</li>
+<li><strong>Nhưng BSS gần bằng 0.</strong> Sau khi hiệu chuẩn, chỉ số <em>không</em> thừa kỹ thuật hơn việc luôn dự báo "mưa với xác suất trung bình lịch sử" khi bám một ngưỡng mưa cụ thể. Chỉ số xếp hạng các giờ được khá, nhưng không phải một dự báo xác suất đáng tin.</li>
+<li><strong>Phụ thuộc mùa và địa điểm.</strong> Mạnh ở gió mùa đông bờ biển trung và nam; yếu hoặc đảo chiều ở Hà Nội mùa mưa Tây Nam.</li>
+<li><strong>Thang đo không đồng nhất giữa các mô hình.</strong> Chỉ GFS có đủ cả ba thành phần; các mô hình khác thiếu lifted index hoặc CIN nên điểm của chúng nằm trên thang khác. Đo riêng GFS một mình — cùng thang đo — độ nâng còn khoảng 1,5 lần.</li>
+</ul>
+<h4>Vì sao không chấm theo độ trễ dự báo như 16 biến còn lại</h4>
+<p>Kho <code>previous-runs</code> của Open-Meteo không phục vụ CAPE, lifted index hay CIN theo hệ số <code>_previous_dayN</code> — đã đo thực nghiệm, cả bảy mô hình đều chỉ trả về cột không có hệ số độ trễ. Không có dữ liệu lead-N cho chỉ số này, nên phép đo là <strong>khả năng phân biệt tại giờ hiệu lực</strong>, không phải sai số dự báo. Đây là giới hạn của nguồn dữ liệu mở, không phải lựa chọn trình bày.</p>
+<h4>Giới hạn khác</h4>
+<ul>
+<li>ERA5 là phân tích lại trên lưới khoảng 31 km và làm mượt đỉnh mưa đối lưu: cao nhất ghi nhận ở TP.HCM là 9,2 mm/giờ, thấp hơn nhiều so với quan trắc. Sự kiện "mưa mạnh" trong phép đo vì thế bị chặn trên, và chỉ số có thể đánh giá thấp cường độ thật của bão.</li>
+<li>Mô hình không có dữ liệu thì thành phần đó bị bỏ qua, <strong>không</strong> bị coi là 0 — nếu coi là 0 thì mô hình thiếu dữ liệu lại được thưởng điểm cao. Giao diện luôn ghi rõ đã dùng những thành phần nào.</li>
+<li>Mức cảnh báo lấy từ phân vị 12 tháng của <strong>chính địa điểm đó</strong>, cùng logic với ngưỡng báo lũ GloFAS: một ngưỡng chung cho cả nước sẽ vô nghĩa vì Đà Lạt và Rừng Tràm không giống nhau.</li>
+</ul>
+<p><strong>Kết luận:</strong> đây là chỉ số khí tượng hữu ích để biết lúc nào khí quyển dễ bốc lên, và có tín hiệu thật ở nhóm giờ cao. Nó <strong>không</strong> phải dự báo động sét và <strong>không</strong> phải cảnh báo. Khi có bão, hãy theo đài khí tượng tỉnh và cảnh báo chính thức.</p>
+</article>
+
 <article class="panel"><h3>Nguồn dữ liệu và quyền sử dụng</h3><p>Dữ liệu <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> và các cơ quan cung cấp mô hình; đối chiếu <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noopener">ERA5 từ ECMWF/Copernicus qua Open-Meteo</a>. Dữ liệu có giấy phép CC BY 4.0; API miễn phí dành cho mục đích phi thương mại với giới hạn sử dụng. Khi triển khai thương mại, cần tuân thủ <a href="https://open-meteo.com/en/terms" target="_blank" rel="noopener">điều khoản nhà cung cấp</a>.</p></article>
 </section>
 
@@ -145,6 +173,7 @@
       <option value="temp">Nhiệt độ 2 m</option>
       <option value="cloud">Phủ mây</option>
       <option value="rain">Lượng mưa</option>
+      <option value="storm">Nguy cơ bão tố (đối lưu)</option>
     </select>
     <button type="button" id="animPlay" class="secondary">▶ Phát</button>
     <output id="animTime" class="small">—</output>
@@ -205,4 +234,4 @@
 </section>
 
 <footer><strong>ATMOS</strong><span>Dữ liệu: Open-Meteo · NOAA · ECMWF · DWD · JMA · ECCC · Météo-France · UKMO · ERA5 · CAMS · USGS · RainViewer · NCHMF</span><span>Mã nguồn mở · dữ liệu khí tượng CC BY 4.0 · Không có cam kết chính xác tuyệt đối.</span></footer></main>
-<script id="benchmark-data" type="application/json">/*BENCHMARK*/</script><script id="nchmf-data" type="application/json">/*NCHMF*/</script><script>/*ENGINE*/</script><script>/*APP*/</script></body></html>
+<script id="benchmark-data" type="application/json">/*BENCHMARK*/</script><script id="lightning-data" type="application/json">/*LIGHTNING*/</script><script id="nchmf-data" type="application/json">/*NCHMF*/</script><script>/*ENGINE*/</script><script>/*APP*/</script></body></html>

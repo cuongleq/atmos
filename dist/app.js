@@ -3102,6 +3102,8 @@ $('introNote').innerHTML = `Mỗi giá trị kèm dải 10–90% và xác suất
 let radarMap = null, radarLayer = null, alertLayer = null, radarInitialized = false;
 let radarFrames = null;   // chuỗi khung RainViewer để phát hoạt hình
 let radarTimer = 0;
+let radarFadeLayer = null;   // lớp tile thứ hai, dùng để mờ chuyển khung
+let radarPlaying = false;
 // Vị trí mà tab thiên tai đang theo dõi. Mặc định bám vị trí dự báo; khi người
 // dùng bấm chip khác thì giữ nguyên cho tới khi bấm lại "Vị trí dự báo".
 let disasterLoc = null, disasterFollow = true;
@@ -3217,19 +3219,47 @@ async function initRadar() {
     const latest = frames[frames.length - 1];
     // Trả lại cấu hình Retina 512px vì máy chủ RainViewer chặn zoom > 7 đối với ảnh tổng hợp toàn cầu.
     // Việc dùng tile 512px + zoomOffset -1 chính là cách ép nó hiện độ phân giải cao gấp 4 lần bình thường.
+    const radarTileOpts = { tileSize: 512, zoomOffset: -1, maxNativeZoom: 7, maxZoom: 18, attribution: 'RainViewer' };
     radarLayer = L.tileLayer(
       `${data.host}${latest.path}/512/{z}/{x}/{y}/2/1_1.png`,
-      { tileSize: 512, zoomOffset: -1, maxNativeZoom: 7, maxZoom: 18, opacity: 0.7, attribution: 'RainViewer' },
+      { ...radarTileOpts, opacity: RADAR_OPACITY },
     ).addTo(radarMap);
+    /*
+     * Lớp thứ hai để mờ chuyển khung. Nó luôn nằm trên lớp chính và luôn trong
+     * suốt cho tới khi được mờ lên; có nút chuột không để chặn thao tác kéo.
+     */
+    radarFadeLayer = L.tileLayer(
+      `${data.host}${latest.path}/512/{z}/{x}/{y}/2/1_1.png`,
+      { ...radarTileOpts, opacity: 0 },
+    ).addTo(radarMap);
+    const fc = radarFadeLayer.getContainer && radarFadeLayer.getContainer();
+    if (fc) {
+      fc.style.transition = 'none';
+      fc.style.opacity = '0';
+      fc.style.pointerEvents = 'none';
+      fc.style.zIndex = '4';
+    }
+    const bc = radarLayer.getContainer && radarLayer.getContainer();
+    if (bc) { bc.style.zIndex = '3'; bc.style.transition = 'none'; }
     alertLayer = L.layerGroup().addTo(radarMap);
     // Lop khong khi ve tren cung ban do radar. Ban do khu vuc dong du dat
     // phong do khong khi o 850/500 hPa nen phai keo lui mot so km de thay het
     // vung. Chi nap khi nguoi dung bat, tranh tai mot lan duyet khong can.
     airLayer = L.layerGroup();
     drawDisasterPin();
-    $('radarMsg').textContent = 'Radar hiện tại · khung ' +
-      new Date(latest.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) +
-      ' (ICT).';
+    /*
+     * Ghi rõ cửa sổ mà nguồn thật sự cho. Nguồn mở của RainViewer chỉ phục vụ
+     * 2 giờ quá khứ cộng (khi có) nửa giờ dự báo nowcast; trước đây nhãn chỉ
+     * ghi giờ của khung cuối, người đọc dễ hiểu là có dữ liệu dài hơn thế.
+     */
+    radarFrames.past = (data.radar.past || []).length;
+    radarFrames.nowcast = (data.radar.nowcast || []).length;
+    const spanH = ((latest.time - frames[0].time) / 3600).toFixed(1);
+    $('radarMsg').textContent = 'Radar hiện tại · khung '
+      + new Date(latest.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })
+      + ' (ICT) · ' + frames.length + ' khung trong ' + spanH + ' giờ'
+      + (radarFrames.nowcast ? ' (gồm ' + radarFrames.nowcast + ' khung dự báo nowcast)' : ' (không có khung dự báo)')
+      + '.';
     initRadarControls();
     const al = $('airLegend');
     if (al) al.innerHTML = airGrid ? airMassLegendHtml() : '';
@@ -3248,50 +3278,187 @@ async function initRadar() {
 
 /* ---------- phát hoạt hình khung radar ---------- */
 
-/** Đổi sang khung radar thứ i, giữ nguyên lớp tile đang dùng. */
-function radarShowFrame(i) {
-  if (!radarFrames || !radarLayer) return;
+/*
+ * Độ mịn khi chuyển khung.
+ *
+ * Trước đây mỗi bước chỉ gọi setUrl, tức khung mới thay thế khung cũ ngay lập
+ * tức: các tế bào mưa nhảy ra như phim giánt cách, đúng thứ làm cho vòng phát
+ * trông giật dù dữ liệu vẫn đúng.
+ *
+ * Cách sửa là chồng HAI lớp tile: lớp dưới giữ khung hiện tại, lớp trên mới tải
+ * khung kế tiếp rồi mờ dần lên. Người xem thấy khung mới nối liền khung cũ như
+ * một video, không phải 12 bức ảnh liên tiếp.
+ *
+ * Nói rõ đánh đổi: hai lớp cùng mờ 0,7 thì giữa chừng hình tổng độ mờ sẽ hơi
+ * thấp hơn (0,58) rồi trở lại 0,7. Đây là giới hạn của cách pha bằng CSS —
+ * pha chuẩn phải vẽ ra canvas mà tile RainViewer không cho đọc pixel. Độ nhấp
+ * nháy này nhỏ và đối xứng, thấy hơn là tăng sáng, và vẫn tốt hơn nhiều so với
+ * việc cắt hẳn.
+ */
+const RADAR_FADE_MS = 340;    // thời gian mờ dần giữa hai khung
+const RADAR_DWELL_MS = 210;   // dừng ở khung mới trước khi mờ sang khung sau
+const RADAR_TILE_WAIT = 320;  // chờ tile tải tối đa trước khi bắt đầu mờ
+const RADAR_OPACITY = 0.7;
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** Chờ lớp tile nạp xong các ô đang nhìn thấy, hoặc hết giờ thì bỏ qua. */
+function radarTilesReady(layer, maxWait) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      layer.off('load', finish);
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, maxWait);
+    // Ô nào đã nằm trong bộ nhớ đệm thì sự kiện load có thể không nổ ra, nên
+    // không được chờ mãi — hết giờ thì mờ luôn.
+    layer.on('load', finish);
+  });
+}
+
+function radarUrl(k) {
+  const f = radarFrames.frames[k];
+  return `${radarFrames.host}${f.path}/512/{z}/{x}/{y}/2/1_1.png`;
+}
+
+function radarLabel(k) {
   const frames = radarFrames.frames;
-  const k = Math.max(0, Math.min(frames.length - 1, i));
-  radarFrames.index = k;
-  const f = frames[k];
-  radarLayer.setUrl(`${radarFrames.host}${f.path}/512/{z}/{x}/{y}/2/1_1.png`);
-  const t = new Date(f.time * 1000).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const t = new Date(frames[k].time * 1000)
+    .toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  return 'Khung ' + (k + 1) + '/' + frames.length + ' · ' + t + ' (ICT)';
+}
+
+/** Đặt nhãn và thanh trượt về khung k, không đụng tới lớp tile. */
+function radarMark(k) {
   const lab = $('radarFrameTime');
-  if (lab) lab.textContent = 'Khung ' + (k + 1) + '/' + frames.length + ' · ' + t + ' (ICT)';
+  if (lab) lab.textContent = radarLabel(k);
   const sl = $('radarFrameSlider');
   if (sl) sl.value = k;
 }
 
-function radarPlay(on) {
-  if (radarTimer) { clearInterval(radarTimer); radarTimer = 0; }
+/** Đổi sang khung radar thứ i. `fade` = true thì mờ dần, ngược lại thay thẳng. */
+async function radarShowFrame(i, fade) {
+  if (!radarFrames || !radarLayer) return;
+  const frames = radarFrames.frames;
+  const k = Math.max(0, Math.min(frames.length - 1, i));
+  radarFrames.index = k;
+  radarMark(k);
+
+  const top = radarFadeLayer && radarFadeLayer.getContainer ? radarFadeLayer.getContainer() : null;
+  if (!fade || !top) {
+    radarLayer.setUrl(radarUrl(k));
+    if (top) { top.style.transition = 'none'; top.style.opacity = '0'; }
+    return;
+  }
+
+  // Nạp khung mới lên lớp trên, rồi chờ nó sẵn sàng TRƯỚC khi mờ — mờ vào ô
+  // trống sẽ thấy một nháy trắng, tệ hơn cả việc cắt thẳng.
+  radarFadeLayer.setUrl(radarUrl(k));
+  await radarTilesReady(radarFadeLayer, RADAR_TILE_WAIT);
+  if (radarFrames.index !== k) return;      // người dùng đã kéo thanh trượt
+  if (!radarPlaying) return;
+
+  const base = radarLayer.getContainer();
+  /*
+   * Đặt cả hai lớp về trạng thái đầu với transition rồi ÉP TRÌNH DUYỆT GHI NHẬN
+   * bằng cách đọc offsetWidth, sau đó mới bật chuyển tiếp.
+   *
+   * Trước đây bước này bọc trong requestAnimationFrame. Ở tab chạy nền, rAF bị
+   * hãm nhịp gần như không nổ, nên lớp trên chưa bao giờ được mờ lên: khung vẫn
+   * đổi, nhưng thay thẳng chứ không mờ dần, và đúng cái độ mịn cần sửa thì
+   * không có. Ép reflow bằng cách đọc thuộc tính là cách không phụ thuộc rAF.
+   */
+  top.style.transition = 'none';
+  top.style.opacity = '0';
+  if (base) { base.style.transition = 'none'; base.style.opacity = String(RADAR_OPACITY); }
+  void top.offsetWidth;
+
+  // Hai lớp chuyển cùng lúc: lớp dưới mờ đi trong khi lớp trên mờ lên, nên
+  // tổng độ mờ không nhảy vọt lên như khi chỉ tăng một lớp.
+  if (base) {
+    base.style.transition = `opacity ${RADAR_FADE_MS}ms linear`;
+    base.style.opacity = '0';
+  }
+  top.style.transition = `opacity ${RADAR_FADE_MS}ms linear`;
+  top.style.opacity = String(RADAR_OPACITY);
+
+  await sleep(RADAR_FADE_MS);
+  // Khung mới đã lên lớp dưới; lớp trên trả về 0 và trở thành lớp dự phòng.
+  radarLayer.setUrl(radarUrl(k));
+  top.style.transition = 'none';
+  top.style.opacity = '0';
+  if (base) { base.style.transition = 'none'; base.style.opacity = String(RADAR_OPACITY); }
+}
+
+/** Dừng phát. `toNow` = true thì quay về khung mới nhất. */
+function radarStop(toNow) {
+  radarPlaying = false;
+  if (radarTimer) { clearTimeout(radarTimer); radarTimer = 0; }
   const b = $('radarPlay');
-  if (b) b.textContent = on ? '⏸ Tạm dừng radar' : '▶ Phát radar';
-  if (!on || !radarFrames || radarFrames.frames.length < 2) return;
-  // 550 ms/khung: khung quá khứ của RainViewer cách nhau 10 phút, nên phát ở
-  // tốc độ này là xấp xỉ thời gian thật — xem được diễn biến mưa như video.
-  radarTimer = setInterval(() => {
-    const n = radarFrames.frames.length;
-    radarShowFrame((radarFrames.index + 1) % n);
-  }, 550);
+  if (b) b.textContent = '▶ Phát radar';
+  // Chuyển khung đang chạy dở sẽ tự dừng ở giữa chừng; đặt lại ngay để lớp
+  // trên không bị kẹt ở độ mờ nửa chừng.
+  const top = radarFadeLayer && radarFadeLayer.getContainer ? radarFadeLayer.getContainer() : null;
+  if (top) { top.style.transition = 'none'; top.style.opacity = '0'; }
+  const base = radarLayer && radarLayer.getContainer ? radarLayer.getContainer() : null;
+  if (base) { base.style.transition = 'none'; base.style.opacity = String(RADAR_OPACITY); }
+  if (toNow && radarFrames && radarFrames.frames.length > 1) {
+    radarShowFrame(radarFrames.frames.length - 1, false);
+  } else {
+    radarMark(radarFrames ? radarFrames.index : 0);
+  }
+}
+
+async function radarStep() {
+  if (!radarPlaying || !radarFrames) return;
+  const n = radarFrames.frames.length;
+  await radarShowFrame((radarFrames.index + 1) % n, true);
+  if (!radarPlaying) return;
+  radarTimer = setTimeout(radarStep, RADAR_DWELL_MS);
+}
+
+function radarPlay(on) {
+  if (on) {
+    if (!radarFrames || radarFrames.frames.length < 2) return;
+    radarPlaying = true;
+    const b = $('radarPlay');
+    if (b) b.textContent = '⏸ Tạm dừng radar';
+    radarStep();
+  } else {
+    // Dừng thì về khung hiện tại, đúng như người dùng mong: bấm tạm dừng xong
+    // thì bản đồ phải ở trạng thái "bây giờ", chứ không đứng lơ lửng ở giữa
+    // quá khứ.
+    radarStop(true);
+  }
 }
 
 function initRadarControls() {
   const b = $('radarPlay');
-  if (b) b.onclick = () => radarPlay(!radarTimer);
+  if (b) b.onclick = () => radarPlay(!radarPlaying);
   const s = $('radarFrameSlider');
   if (s) {
-    s.oninput = () => { radarPlay(false); radarShowFrame(+s.value); };
+    /*
+     * Phải đọc khung NGƯỜI DÙNG CHỌN trước khi dừng. radarStop gọi radarMark để
+     * đồng bộ nhãn, và radarMark lại ghi giá trị hiện tại vào thanh trượt — đọc
+     * sau đó thì luôn nhận được khung cũ, và kéo thanh trượt sẽ không bao giờ
+     * dừng ở khung người dùng chọn.
+     */
+    s.oninput = () => {
+      const k = +s.value;
+      radarStop(false);
+      radarShowFrame(k, false);
+    };
   }
-  const loop = $('radarLoop');
-  if (loop) loop.onchange = () => { radarFrames && (radarFrames.loop = loop.checked); };
   if (radarFrames) {
     const s2 = $('radarFrameSlider');
     if (s2) s2.max = radarFrames.frames.length - 1;
-    radarShowFrame(radarFrames.index);
+    radarMark(radarFrames.index);
   }
 }
-
 /* ---------- bản đồ dự báo động ---------- */
 
 /*
@@ -4359,7 +4526,9 @@ function initDisasterTab() {
   initDisasterSearch();
   initAnimControls();
   $('disasterRefreshRadar').onclick = () => {
+    radarStop(false);
     if (radarMap) { try { radarMap.remove(); } catch (e) { /* bỏ qua */ } radarMap = null; }
+    radarLayer = null; radarFadeLayer = null;
     // Phải dựng lại đúng cấu trúc như lúc đầu: hai canvas của lớp động nằm
     // trong khung bản đồ, và innerHTML = '' sẽ xoá mất chúng.
     document.getElementById('radarMap').innerHTML = '<div id="radarMsg" class="notice">Đang tải lại radar…</div>'

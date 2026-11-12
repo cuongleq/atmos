@@ -43,7 +43,7 @@ let rateWaits = 0;
 
 async function getJson(url, file) {
   const dest = path.join(RAW, file);
-  if (fs.existsSync(dest) && fs.statSync(dest).size > 500) return { cached: true };
+  if (fs.existsSync(dest) && fs.statSync(dest).size > 500) {return { cached: true };}
   for (let attempt = 0; attempt < 8; attempt++) {
     let r;
     try {
@@ -115,7 +115,7 @@ for (const loc of LOCATIONS) {
       const r = await getJson(url, file);
       const tag = r.cached ? 'da co' : r.ok ? `${r.hours} gio` : 'that bai';
       console.log(`    ${m.padEnd(20)} -${lead}d ${tag}`);
-      if (!r.cached) await sleep(INTERVAL_MS);
+      if (!r.cached) {await sleep(INTERVAL_MS);}
       if (rateWaits > MAX_WAITS) {
         console.log('\nDa gap gioi han tan suat nhieu lan. Dung lai: node collect-levels.mjs');
         process.exit(0);

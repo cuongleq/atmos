@@ -35,7 +35,7 @@ const gate = { last: 0, interval: Number(flag('--interval')) || 12000, tail: Pro
 async function throttle() {
   const run = async () => {
     const wait = gate.last + gate.interval - Date.now();
-    if (wait > 0) await sleep(wait);
+    if (wait > 0) {await sleep(wait);}
     gate.last = Date.now();
   };
   const next = gate.tail.then(run, run);
@@ -49,7 +49,7 @@ async function cached(file, build) {
   if (!force) {
     try {
       const json = JSON.parse(await fs.readFile(target, 'utf8'));
-      if (covers(json)) return { json, cached: true };
+      if (covers(json)) {return { json, cached: true };}
       // Stale period. Leave the file in place: it is only replaced once a
       // fresh download succeeds, so a rate limit never destroys working data.
     } catch { /* fall through and download */ }
@@ -68,10 +68,28 @@ for (let attempt = 0; attempt < 8; attempt++) {
   await throttle();
   try {
     const r = await fetch(build(), { signal: AbortSignal.timeout(240000) });
+
+    // Respect Retry-After header (seconds or HTTP-date)
+    const retryAfter = r.headers.get('retry-after');
+    if (retryAfter && (r.status === 429 || r.status === 503)) {
+      const waitSec = parseInt(retryAfter, 10);
+      const waitMs = Number.isFinite(waitSec) && waitSec > 0
+        ? waitSec * 1000
+        : (() => {
+            const date = new Date(retryAfter);
+            return Number.isFinite(date.getTime()) ? date.getTime() - Date.now() : 60000;
+          })();
+      if (waitMs > 0 && waitMs < 3600000) {
+        console.log(`  [${file}] Retry-After: chờ ${Math.round(waitMs / 1000)}s`);
+        await sleep(waitMs);
+        continue;
+      }
+    }
+
     const json = JSON.parse(await r.text());
-    if (json.error) throw new Error(json.reason || `HTTP ${r.status}`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    if (!json.hourly || !json.hourly.time?.length) throw new Error('không có khối hourly');
+    if (json.error) {throw new Error(json.reason || `HTTP ${r.status}`);}
+    if (!r.ok) {throw new Error(`HTTP ${r.status}`);}
+    if (!json.hourly || !json.hourly.time?.length) {throw new Error('không có khối hourly');}
     await fs.writeFile(target, JSON.stringify(json));
     gate.interval = Math.max(8000, gate.interval * 0.85);   // relax slowly on success
     rateWaits = 0;
@@ -80,7 +98,7 @@ for (let attempt = 0; attempt < 8; attempt++) {
     last = e;
     if (RATE_LIMIT.test(e.message)) {
       rateWaits++;
-      if (rateWaits > RATE_RETRY_CAP) throw new Error(`còn giới hạn tần suất sau ${rateWaits} lần chờ`);
+      if (rateWaits > RATE_RETRY_CAP) {throw new Error(`còn giới hạn tần suất sau ${rateWaits} lần chờ`);}
       gate.interval = Math.min(240000, gate.interval * 1.5);
       const wait = Math.min(600000, gate.interval * 2);
       console.log(`  [${file}] giới hạn tần suất (lần ${rateWaits}), chờ ${Math.round(wait / 1000)}s`);
@@ -139,4 +157,4 @@ await Promise.all(Array.from({ length: concurrency }, async () => {
 
 const minutes = ((Date.now() - started) / 60000).toFixed(1);
 console.log(`\nDone. ${done} ok, ${failed} failed, ${(bytes / 1000).toFixed(0)}k hourly samples in ${minutes} min.`);
-if (failed) process.exitCode = 1;
+if (failed) {process.exitCode = 1;}

@@ -41,9 +41,9 @@ return Array.isArray(t) && t.length > 1 && t[0] <= windowStart && t[t.length - 1
 function missing() {
   const out = [];
   for (const loc of LOCATIONS.filter(l => keep(l.id, wantedLocations))) {
-    if (!have(`${loc.id}-era5.json`)) out.push({ loc: loc.id, model: null });
+    if (!have(`${loc.id}-era5.json`)) {out.push({ loc: loc.id, model: null });}
     for (const m of DET_MODELS.filter(m => keep(m.id, wantedModels))) {
-      if (!have(`${loc.id}-${m.id}.json`)) out.push({ loc: loc.id, model: m.id });
+      if (!have(`${loc.id}-${m.id}.json`)) {out.push({ loc: loc.id, model: m.id });}
     }
   }
   return out;
@@ -60,11 +60,11 @@ const log = msg => console.log(`[${new Date().toISOString().slice(11, 19)}] ${ms
 
 async function collectRound() {
   const todo = missing();
-  if (!todo.length) return true;
+  if (!todo.length) {return true;}
   const locations = [...new Set(todo.map(t => t.loc))].join(',');
   const models = [...new Set(todo.map(t => t.model).filter(Boolean))].join(',');
   const args = ['--locations', locations, '-j', '1', '--interval', '45000', '--max-rate-waits', '6'];
-  if (models) args.push('--models', models);
+  if (models) {args.push('--models', models);}
   log(`còn thiếu ${todo.length} series (${locations} / ${models || 'era5'}) — thử tải`);
   const code = await run('collect.mjs', args);
   log(`collect.mjs xong với mã ${code}`);
@@ -87,12 +87,12 @@ if (!chainOnly) {
       process.exit(2);
     }
     ready = await collectRound();
-    if (!ready) await new Promise(r => setTimeout(r, 10 * 60000));   // nghỉ 10 phút rồi thử lại
+    if (!ready) {await new Promise(r => setTimeout(r, 10 * 60000));}   // nghỉ 10 phút rồi thử lại
   }
 }
 
 const left = missing();
-if (left.length) log(`cảnh báo: vẫn thiếu ${left.length} series — chuỗi kiểm thử sẽ báo lỗi`);
+if (left.length) {log(`cảnh báo: vẫn thiếu ${left.length} series — chuỗi kiểm thử sẽ báo lỗi`);}
 
 if (runBench) {
   log('chạy bench.mjs');

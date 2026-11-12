@@ -14,7 +14,7 @@ const isoOf = (d, m, y) => `${y}-${String(m).padStart(2, '0')}-${String(d).padSt
 
 function parseDateFromText(text) {
   const m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if (!m) return null;
+  if (!m) {return null;}
   const d = String(m[1]).padStart(2, '0');
   const mo = String(m[2]).padStart(2, '0');
   const y = m[3];
@@ -25,17 +25,17 @@ function parseDateFromText(text) {
 
 function levelOf(title, kind) {
   const T = (title || '').toUpperCase();
-  if (/BÃO|ÁP THẤP|LŨ QUÉT|SẠT LỞ|SỤT LÚN|LŨ TRÊN SÔNG/.test(T)) return 'red';
+  if (/BÃO|ÁP THẤP|LŨ QUÉT|SẠT LỞ|SỤT LÚN|LŨ TRÊN SÔNG/.test(T)) {return 'red';}
   if (/MƯA LỚN|MƯA DÔNG|GIÓ MẠNH|SÓNG LỚN|LỐC|SÉT|MƯA ĐÁ|GIÓ GIẬT|TRIỀU CƯỜNG/.test(T)) {
     return (kind === 'rain' || /ĐẶC BIỆT LỚN|KHẨN CẤP/.test(T)) ? 'red' : 'orange';
   }
-  if (/KHÔNG KHÍ LẠNH|RÉT|NẮNG NÓNG/.test(T)) return 'orange';
+  if (/KHÔNG KHÍ LẠNH|RÉT|NẮNG NÓNG/.test(T)) {return 'orange';}
   return 'info';
 }
 
 const todayIso = new Date().toISOString().slice(0, 10);
 const isFresh = (iso, daysLimit = 3) => {
-  if (!iso) return false;
+  if (!iso) {return false;}
   const days = (Date.parse(todayIso) - Date.parse(iso)) / 86400000;
   return days >= -1 && days <= daysLimit;
 };
@@ -97,7 +97,7 @@ async function collectAll() {
   for (const cat of CATEGORIES) {
     try {
       const r = await fetch(cat.url, { signal: AbortSignal.timeout(35000) });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) {throw new Error('HTTP ' + r.status);}
       const html = await r.text();
 
       const postLinks = [];
@@ -177,10 +177,10 @@ async function collectAll() {
 
   // Sắp xếp tin khẩn cấp: Đỏ trước, Cam tiếp theo, sau đó theo thời gian
   report.breaking.sort((a, b) => {
-    if (a.level === 'red' && b.level !== 'red') return -1;
-    if (b.level === 'red' && a.level !== 'red') return 1;
-    if (a.level === 'orange' && b.level === 'info') return -1;
-    if (b.level === 'orange' && a.level === 'info') return 1;
+    if (a.level === 'red' && b.level !== 'red') {return -1;}
+    if (b.level === 'red' && a.level !== 'red') {return 1;}
+    if (a.level === 'orange' && b.level === 'info') {return -1;}
+    if (b.level === 'orange' && a.level === 'info') {return 1;}
     return 0;
   });
 

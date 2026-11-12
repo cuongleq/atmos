@@ -9,7 +9,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 
 http.createServer((req, res) => {
   let rel = decodeURIComponent(req.url.split('?')[0]);
-  if (rel === '/') rel = '/index.html';
+  if (rel === '/') {rel = '/index.html';}
   const file = path.join(root, rel);
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404); res.end('not found'); return;

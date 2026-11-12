@@ -1,0 +1,47 @@
+{
+  "name": "atmos",
+  "version": "1.0.0",
+  "description": "Phòng dự báo thời tiết đa tham số — chạy hoàn toàn trên trình duyệt",
+  "type": "module",
+  "scripts": {
+    "collect": "node collect.mjs",
+    "collect:nchmf": "node collect-nchmf.mjs",
+    "collect:levels": "node collect-levels.mjs",
+    "collect:ground": "node collect-ground.mjs",
+    "bench": "node bench.mjs",
+    "ltbench": "node ltbench.mjs",
+    "build": "node build.mjs",
+    "test": "node test.mjs",
+    "test:unit": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "dev": "node serve.mjs"
+  },
+  "keywords": [
+    "weather",
+    "forecast",
+    "meteorology",
+    "vietnam",
+    "emos",
+    "calibration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "pino": "^8.17.0",
+    "pino-pretty": "^10.3.0",
+    "typescript": "^5.3.0",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^1.2.0",
+    "zod": "^3.22.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

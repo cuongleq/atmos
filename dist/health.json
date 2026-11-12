@@ -1,0 +1,22 @@
+{
+  "status": "healthy",
+  "timestamp": "2026-11-12T05:05:57.570Z",
+  "checks": {
+    "webapp": {
+      "ok": true,
+      "latency": 0,
+      "message": "Static health endpoint"
+    },
+    "openMeteo": {
+      "ok": true,
+      "latency": 0,
+      "message": "Check via client-side"
+    },
+    "benchmark": {
+      "ok": true,
+      "ageHours": 0,
+      "message": "Check benchmark.json"
+    }
+  },
+  "version": "1.0.0"
+}

@@ -26,5 +26,5 @@
     }
   },
   "include": ["src/**/*", "*.mjs", "*.js"],
-  "exclude": ["node_modules", "dist", "raw", "*.config.*"]
+  "exclude": ["node_modules", "dist", "raw", "*.config.*", "src/engine"]
 }

@@ -22,7 +22,11 @@ function makeBeforeSend(config: { ignoreErrors?: string[] }) {
         }
       }
     }
-    event.contexts = { ...event.contexts, app: { name: 'ATMOS', version: config.release }, user: {} };
+    event.contexts = {
+      ...event.contexts,
+      app: { name: 'ATMOS', version: config.release },
+      user: {},
+    };
     return event;
   };
 }
@@ -61,9 +65,14 @@ export function initSentry(config: {
           if (error.message.includes(ignored)) return null;
         }
       }
-      event.contexts = { ...event.contexts, app: { name: 'ATMOS', version: config.release }, user: {} };
+      event.contexts = {
+        ...event.contexts,
+        app: { name: 'ATMOS', version: config.release },
+        user: {},
+      };
       return event;
     };
+  };
 
   const bst = (transaction: any) => {
     if (config.ignoreTransactions) {
@@ -112,6 +121,14 @@ export function getSentry(): typeof Sentry { return Sentry; }
 export function isSentryInitialized(): boolean { return Sentry.getCurrentHub().getClient() !== undefined; }
 export function flushSentry(timeout = 2000): Promise<boolean> { return Sentry.flush(timeout); }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => { flushSentry(1000); });
+function initializeClient(): void {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      flushSentry(1000);
+    });
+  }
 }
+
+initializeClient();
+
+export const __sentry_module_loaded = true;

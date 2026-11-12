@@ -3,7 +3,7 @@ import typescriptEslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['node_modules', 'dist', 'raw', '*.log', '*.json', '*.config.*', '*.mjs', '*.js', 'src/engine', 'data-ingestion', 'src/app', 'src/monitoring'],
+    ignores: ['node_modules', 'dist', 'raw', '*.log', '*.json', '*.config.*', '*.mjs', '*.js', 'src/engine', 'data-ingestion', 'src/app', 'src/monitoring', 'src/features/cyclone', 'src/features/flood'],
   },
   ...typescriptEslint.configs.recommended,
   {

@@ -31,6 +31,7 @@ import {
   esc 
 } from '../helpers/index.js';
 import { DEFAULT_PLACE, CHART_HORIZONS } from '../constants/index.js';
+import { loadFloodData } from '../../features/flood/api.js';
 
 /** Initialize forecast module */
 export function initForecast(): void {
@@ -255,6 +256,13 @@ export async function loadForecast(): Promise<void> {
     loadMonthCal();
     loadAqi();
     loadAirMassAndRivers();
+    
+    // Load flood data
+    const floodRivers = await loadFloodData(place);
+    if (floodRivers.length > 0) {
+      console.log('[Flood] Loaded', floodRivers.length, 'rivers for', place.name);
+    }
+    
     syncDisasterToPlace();
     
     // Status message

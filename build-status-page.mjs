@@ -1,0 +1,92 @@
+/**
+ * ATMOS Status Page - Simple HTML for uptime monitoring
+ * Deploy separately or access via /status.html
+ */
+
+// Generate static status page for external monitoring
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+const statusHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATMOS Status</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    .status { padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+    .healthy { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .degraded { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+    .down { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .check { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+    .check:last-child { border-bottom: none; }
+    .ok { color: #28a745; }
+    .warn { color: #ffc107; }
+    .fail { color: #dc3545; }
+    pre { background: #f8f9fa; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    .timestamp { color: #6c757d; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>🌤️ ATMOS Weather System Status</h1>
+  <p class="timestamp">Last updated: <span id="updated">Loading...</span></p>
+  
+  <div id="overall" class="status">
+    <h2>Overall Status: <span id="status">Checking...</span></h2>
+  </div>
+  
+  <div class="status">
+    <h3>Component Checks</h3>
+    <div id="checks">Loading...</div>
+  </div>
+  
+  <details>
+    <summary>Raw JSON (for monitoring tools)</summary>
+    <pre id="raw">Loading...</pre>
+  </details>
+
+  <script>
+    async function check() {
+      try {
+        const resp = await fetch('/api/health', { cache: 'no-cache' });
+        const data = await resp.json();
+        render(data);
+      } catch (e) {
+        document.getElementById('overall').className = 'status down';
+        document.getElementById('status').textContent = 'DOWN - API unreachable';
+        document.getElementById('checks').innerHTML = '<div class="check"><span>API</span><span class="fail">Failed to fetch</span></div>';
+        document.getElementById('raw').textContent = 'Error: ' + e.message;
+      }
+    }
+    
+    function render(data) {
+      document.getElementById('updated').textContent = new Date(data.timestamp).toLocaleString();
+      
+      const overall = document.getElementById('overall');
+      const statusEl = document.getElementById('status');
+      overall.className = 'status ' + data.status;
+      statusEl.textContent = data.status.toUpperCase();
+      
+      let html = '';
+      for (const [name, check] of Object.entries(data.checks)) {
+        const icon = check.ok ? '✅' : '❌';
+        const cls = check.ok ? 'ok' : 'fail';
+        const detail = check.latency ? \` (\${check.latency.toFixed(0)}ms)\` : '';
+        html += \`<div class="check"><span>\${icon} \${name}</span><span class="\${cls}">\${check.message}\${detail}</span></div>\`;
+      }
+      document.getElementById('checks').innerHTML = html;
+      document.getElementById('raw').textContent = JSON.stringify(data, null, 2);
+    }
+    
+    check();
+    setInterval(check, 30000);
+  </script>
+</body>
+</html>`;
+
+// Write status page
+const distDir = join(process.cwd(), 'dist');
+mkdirSync(distDir, { recursive: true });
+writeFileSync(join(distDir, 'status.html'), statusHtml);
+console.log('✅ Status page written to dist/status.html');

@@ -11,12 +11,15 @@
     "bench": "node bench.mjs",
     "ltbench": "node ltbench.mjs",
     "build": "node build.mjs",
+    "build:status": "node build-status-page.mjs",
+    "build:health": "node build-health-json.mjs",
     "test": "node test.mjs",
     "test:unit": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "dev": "node serve.mjs"
+    "dev": "node serve.mjs",
+    "monitor:check": "node -e \"import('./src/monitoring/health-check.ts').then(m => m.runHealthCheck().then(console.log))\""
   },
   "keywords": [
     "weather",

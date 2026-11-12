@@ -1,0 +1,139 @@
+name: SLA Monitoring
+
+on:
+  schedule:
+    # Check every 5 minutes
+    - cron: '*/5 * * * *'
+    # Daily summary at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check web app availability
+        id: webapp
+        run: |
+          URL="https://cuongleq.github.io/atmos/"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" "$URL" --max-time 10 || echo "000 0")
+          HTTP_CODE=$(echo $RESPONSE | cut -d' ' -f1)
+          LATENCY=$(echo $RESPONSE | cut -d' ' -f2)
+          
+          echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "latency=$LATENCY" >> $GITHUB_OUTPUT
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Web app OK (${LATENCY}s)"
+          else
+            echo "❌ Web app FAILED (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: Check Open-Meteo API
+        id: api
+        run: |
+          URL="https://api.open-meteo.com/v1/forecast?latitude=16&longitude=108&hourly=temperature_2m&forecast_days=1"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" "$URL" --max-time 10 || echo "000 0")
+          HTTP_CODE=$(echo $RESPONSE | cut -d' ' -f1)
+          LATENCY=$(echo $RESPONSE | cut -d' ' -f2)
+          
+          echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "latency=$LATENCY" >> $GITHUB_OUTPUT
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Open-Meteo API OK (${LATENCY}s)"
+          else
+            echo "❌ Open-Meteo API FAILED (HTTP $HTTP_CODE)"
+          fi
+
+      - name: Check benchmark.json freshness
+        id: benchmark
+        run: |
+          URL="https://cuongleq.github.io/atmos/benchmark.json"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$URL" --max-time 10 || echo "000")
+          
+          if [ "$RESPONSE" = "200" ]; then
+            # Check if data is less than 48 hours old
+            CONTENT=$(curl -s "$URL" --max-time 10)
+            CREATED_AT=$(echo "$CONTENT" | jq -r '.createdAt')
+            NOW=$(date -u +%s)
+            CREATED=$(date -u -d "$CREATED_AT" +%s 2>/dev/null || echo 0)
+            AGE_HOURS=$(( (NOW - CREATED) / 3600 ))
+            
+            echo "age_hours=$AGE_HOURS" >> $GITHUB_OUTPUT
+            echo "created_at=$CREATED_AT" >> $GITHUB_OUTPUT
+            
+            if [ "$AGE_HOURS" -lt 48 ]; then
+              echo "✅ Benchmark fresh (${AGE_HOURS}h old)"
+            else
+              echo "⚠️ Benchmark stale (${AGE_HOURS}h old)"
+            fi
+          else
+            echo "❌ Benchmark.json not accessible (HTTP $RESPONSE)"
+            exit 1
+          fi
+
+  ci-status:
+    name: CI Pipeline Status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Check recent CI runs
+        run: |
+          gh api repos/cuongleq/atmos/actions/runs \
+            --jq '.workflow_runs[:10] | map({name, conclusion, created_at, head_branch})' \
+            | jq -r '.[] | "\(.name): \(.conclusion // "running") (\(.created_at))"'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  calibration-status:
+    name: Calibration Pipeline Status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check daily calibration workflow
+        run: |
+          gh api repos/cuongleq/atmos/actions/workflows/daily-calibration.yml/runs \
+            --jq '.workflow_runs[:5] | map({conclusion, created_at, head_branch})' \
+            | jq -r '.[] | "\(.conclusion // "running") (\(.created_at))"'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-failure:
+    name: Notify on Failure
+    needs: [health-check, ci-status, calibration-status]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Create failure summary
+        run: |
+          echo "## 🚨 ATMOS SLA Alert" > summary.md
+          echo "" >> summary.md
+          echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")" >> summary.md
+          echo "**Workflow:** ${{ github.workflow }}" >> summary.md
+          echo "**Run:** ${{ github.run_id }}" >> summary.md
+          echo "" >> summary.md
+          echo "One or more health checks failed. Check the workflow run for details." >> summary.md
+
+      - name: Send alert (placeholder)
+        run: |
+          # Replace with your notification method:
+          # - Slack webhook
+          # - Email via sendmail
+          # - PagerDuty / Opsgenie
+          # - Discord webhook
+          echo "Alert: SLA checks failed"
+          cat summary.md
+          # Example for Slack:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data "{\"text\":\"$(cat summary.md | sed ':a;N;s/\n/\\n/g;ta')\"}" \
+          #   $SLACK_WEBHOOK_URL
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

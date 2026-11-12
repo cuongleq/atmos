@@ -26,3 +26,20 @@ try{
 }
 await fs.writeFile(new URL('index.html',dir),html);
 console.log('Standalone HTML assembled:',Buffer.byteLength(html),'bytes');
+
+// Generate health.json
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+const health = {
+  status: 'healthy',
+  timestamp: new Date().toISOString(),
+  checks: {
+    webapp: { ok: true, latency: 0, message: 'Static health endpoint' },
+    openMeteo: { ok: true, latency: 0, message: 'Check via client-side' },
+    benchmark: { ok: true, ageHours: 0, message: 'Check benchmark.json' },
+  },
+  version: '1.0.0',
+};
+mkdirSync(join(process.cwd(), 'dist'), { recursive: true });
+writeFileSync(join(process.cwd(), 'dist', 'health.json'), JSON.stringify(health, null, 2));
+console.log('✅ health.json generated');

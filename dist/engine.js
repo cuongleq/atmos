@@ -1,4 +1,4 @@
-/* ATMOS Engine v1.0.0 - 2026-11-12T01:16:00.397Z */
+/* ATMOS Engine v1.0.0 - 2026-11-12T06:20:12.930Z */
 'use strict';
 "use strict";
 var AtmosEngine = (() => {
@@ -363,17 +363,23 @@ var AtmosEngine = (() => {
     logit: (x) => {
       const p = clamp(x, 0.5, 99.5) / 100;
       return Math.log(p / (1 - p));
-    }
+    },
+    direction: (x) => x,
+    code: (x) => x
   };
   var INVERSE = {
     gauss: (y) => y,
     log1p: (y) => Math.expm1(clamp(y, -30, 30)),
-    logit: (y) => 1 / (1 + Math.exp(-clamp(y, -30, 30))) * 100
+    logit: (y) => 1 / (1 + Math.exp(-clamp(y, -30, 30))) * 100,
+    direction: (y) => y,
+    code: (y) => y
   };
   var BOUNDS = {
     log1p: [0, null],
     logit: [0, 100],
-    gauss: [null, null]
+    gauss: [null, null],
+    direction: [null, null],
+    code: [null, null]
   };
   function jacobian(kind, mu) {
     if (kind === "log1p") return Math.exp(Math.max(mu, -20));
@@ -450,7 +456,7 @@ var AtmosEngine = (() => {
   // src/engine/linear-algebra.ts
   function gaussSolve(A, b) {
     const n = b.length;
-    const M = A.map((r, i) => r.slice().concat([b[i]]));
+    const M = A.map((r, i) => [...r, b[i]]);
     for (let c = 0; c < n; c++) {
       let p = c;
       for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
@@ -1296,6 +1302,7 @@ var AtmosEngine = (() => {
   }
 
   // src/engine/calibration.ts
+  var isFiniteNum = (v) => typeof v === "number" && Number.isFinite(v);
   function calibrationBundle(sel, spec, usable, crossVars, crossFill, sg, kind) {
     const labels = ["mean", "spread", ...usable, ...crossVars, "sinHour", "cosHour", "sinYear", "cosYear"];
     const sigma = { alpha: round(sg.alpha, 8), beta: round(sg.beta, 8) };
@@ -1318,30 +1325,39 @@ var AtmosEngine = (() => {
       };
     }
     if (sel.model.family === "best") {
-      return { family: "best", kind, singleModel: sel.model.singleModel, modelIds: usable, sigma2: sigma, labels };
+      return { family: "best", kind, singleModel: sel.model.singleModel, modelIds: usable, sigma2: sigma, labels, crossVars: [] };
     }
-    return { family: "mean", kind, modelIds: usable, sigma2: sigma, labels };
+    return { family: "mean", kind, modelIds: usable, sigma2: sigma, labels, crossVars: [] };
   }
   function predictFromCalibration(calib, values, spread, hour, doy, crossVals) {
     if (calib.family === "emos" || calib.family === "nnls") {
       const row = [values.mean, spread];
-      for (let j = 0; j < calib.modelIds.length; j++) row.push(finite(values.byId[j]) ? values.byId[j] : values.mean);
+      for (let j = 0; j < calib.modelIds.length; j++) {
+        const v = values.byId[j];
+        row.push(isFiniteNum(v) ? v : values.mean);
+      }
       for (let j = 0; j < (calib.crossVars || []).length; j++) {
-        const v = crossVals ? crossVals[j] : null;
-        row.push(finite(v) ? v : calib.crossMean ? calib.crossMean[j] : 0);
+        const v = crossVals && j < crossVals.length ? crossVals[j] : null;
+        const isFinite = typeof v === "number" && Number.isFinite(v);
+        const fallback = calib.crossMean ? calib.crossMean[j] : 0;
+        const val = isFinite ? v : fallback ?? 0;
+        row.push(val);
       }
       row.push(Math.sin(2 * Math.PI * hour / 24), Math.cos(2 * Math.PI * hour / 24));
       row.push(Math.sin(2 * Math.PI * doy / 365.25), Math.cos(2 * Math.PI * doy / 365.25));
-      const SD = calib.scale || calib.beta.map(() => 1);
+      const SD = calib.scale.length >= calib.beta.length ? calib.scale : calib.beta.map(() => 1);
       let mu = calib.intercept;
       for (let j = 0; j < calib.beta.length; j++) {
-        mu += calib.beta[j] * ((row[j] - calib.centre[j]) / SD[j]);
+        const sd = SD[j];
+        const rowVal = row[j];
+        const centreVal = calib.centre[j];
+        mu += calib.beta[j] * ((rowVal - centreVal) / sd);
       }
       return mu;
     }
     if (calib.family === "best") {
       const j = calib.modelIds.indexOf(calib.singleModel);
-      return j >= 0 && finite(values.byId[j]) ? values.byId[j] : values.mean;
+      return j >= 0 && isFiniteNum(values.byId[j]) ? values.byId[j] : values.mean;
     }
     return values.mean;
   }
@@ -2047,6 +2063,7 @@ var AtmosEngine = (() => {
     let best = null;
     for (let i = 0; i + 1 < legs.length; i++) {
       const a = legs[i], b = legs[i + 1];
+      if (!a || !b) continue;
       const steps = 24;
       for (let s = 0; s <= steps; s++) {
         const f = s / steps;
@@ -2106,9 +2123,11 @@ var AtmosEngine = (() => {
     const n = Math.min(dir850.length, t850.length);
     if (n < hoursBack + 2) return null;
     const i0 = n - 1, i1 = n - 1 - hoursBack;
-    if (!finite(dir850[i0]) || !finite(dir850[i1]) || !finite(t850[i0]) || !finite(t850[i1])) return null;
-    const shift = (dir850[i0] - dir850[i1] + 540) % 360 - 180;
-    const dT = t850[i0] - t850[i1];
+    const dir0 = dir850[i0], dir1 = dir850[i1];
+    const t0 = t850[i0], t1 = t850[i1];
+    if (!finite(dir0) || !finite(dir1) || !finite(t0) || !finite(t1)) return null;
+    const shift = (dir0 - dir1 + 540) % 360 - 180;
+    const dT = t0 - t1;
     if (shift >= 20 && dT <= -1) return { kind: "M\u1EB7t l\u1EA1nh", leadHours: hoursBack, windShift: round(shift, 0), dT: round(dT, 1) };
     if (shift <= -20 && dT >= 1) return { kind: "M\u1EB7t \u1EA5m", leadHours: hoursBack, windShift: round(shift, 0), dT: round(dT, 1) };
     return null;

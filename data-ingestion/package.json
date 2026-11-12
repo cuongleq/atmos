@@ -1,0 +1,27 @@
+{
+  "name": "atmos-data-ingestion",
+  "version": "1.0.0",
+  "description": "ATMOS Data Ingestion Pipeline - NCEP GFS/GEFS + JMA GSM",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "ingest:ncep": "node ingest-ncep.js",
+    "ingest:jma": "node ingest-jma.js",
+    "ingest:all": "npm run ingest:ncep && npm run ingest:jma",
+    "calibrate": "node calibrate.js",
+    "verify": "node verify-skill.js",
+    "dev": "node --watch ingest-all.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.500.0",
+    "axios": "^1.21.1",
+    "netcdfjs": "^4.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

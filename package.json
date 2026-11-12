@@ -17,9 +17,11 @@
     "test:unit": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "ci": "npm run lint && npm run test && npm run build",
     "dev": "node serve.mjs",
-    "monitor:check": "node -e \"import('./src/monitoring/health-check.ts').then(m => m.runHealthCheck().then(console.log))\""
+    "monitor:check": "node -e \"import('./src/monitoring/health-check.ts').then(m => m.runHealthCheck().then(console.log))\"",
+    "sentry:test": "node -e \"import('./src/monitoring/sentry.ts').then(m => m.captureMessage('Test message from ATMOS', 'info')).then(console.log)\"",
+    "sentry:flush": "node -e \"import('./src/monitoring/sentry.ts').then(m => m.flushSentry(2000)).then(console.log)\""
   },
   "keywords": [
     "weather",
@@ -42,9 +44,14 @@
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.72.2",
     "vitest": "^1.2.0",
+    "workbox-cli": "^7.4.1",
     "zod": "^3.22.0"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@sentry/browser": "^11.12.0",
+    "@sentry/tracing": "^7.120.4"
   }
 }

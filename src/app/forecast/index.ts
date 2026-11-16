@@ -3,7 +3,8 @@
  * Main forecast display logic
  */
 
-import { E } from '../../engine/index.js';
+// Get E from global namespace (set by engine bundle)
+const E = (typeof window !== 'undefined' && window.AtmosEngine) ? window.AtmosEngine.E : {};
 import { state, actions, selectors } from '../state/index.js';
 import { 
   calibrationFor, 

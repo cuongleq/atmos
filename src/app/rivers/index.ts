@@ -3,7 +3,8 @@
  * River discharge data from Open-Meteo Flood API
  */
 
-import { E } from '../../engine/index.js';
+// Get E from global namespace (set by engine bundle)
+const E = (typeof window !== 'undefined' && window.AtmosEngine) ? window.AtmosEngine.E : {};
 import { selectors, state } from '../state/index.js';
 import { $, fmt, finite, bearing, compass, esc, todayISO } from '../helpers/index.js';
 import { api, pLimit } from '../api/index.js';

@@ -144,8 +144,23 @@ async function buildApp() {
     define: {
       'import.meta.env.DEV': 'false',
       'import.meta.env.PROD': 'true',
+      'import.meta.env.VITE_SENTRY_DSN': '""',
+      'import.meta.env.VITE_SENTRY_TRACES_RATE': '"0.1"',
+      'import.meta.env.VITE_SENTRY_PROFILES_RATE': '"0"',
+      'import.meta.env.VITE_SENTRY_TRACING': '"true"',
+      'import.meta.env.VITE_SENTRY_PROFILING': '"false"',
+      'import.meta.env.VITE_APP_VERSION': '"1.0.0"',
+      'import.meta.env.MODE': '"production"',
     },
-    external: ['leaflet', '../../engine/index.js'],
+    external: ['leaflet'],
+    plugins: [{
+      name: 'engine-shim',
+      setup(build) {
+        build.onResolve({ filter: /^\.\.\/\.\.\/engine\/index\.js$/ }, (args) => {
+          return { path: join(SRC, 'app/engine-shim.ts'), namespace: 'file' };
+        });
+      },
+    }],
   });
   
   console.log('✅ App built to dist/app.js');

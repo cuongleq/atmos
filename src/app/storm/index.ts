@@ -19,25 +19,23 @@ export async function loadStorm(): Promise<void> {
   box.innerHTML = '<p class="muted">Đang tải chỉ số đối lưu\u2026</p>';
   
   try {
-    const u = new URLSearchParams({
+    const data = await api('https://api.open-meteo.com/v1/forecast', {
       latitude: place.lat.toFixed(4),
       longitude: place.lon.toFixed(4),
-      hourly: 'cape,li,cin',
-      models: MODELS.map(m => m.id).join(','),
-      past_days: 7,
-      forecast_days: 7,
+      hourly: 'cape,lifted_index,convective_inhibition',
+      models: MODELS.map((m: { id: string; name: string }) => m.id).join(','),
+      past_days: '7',
+      forecast_days: '7',
       timezone: 'auto',
     });
-    
-    const data = await api('https://api.open-meteo.com/v1/forecast', u);
     const hourly = data.hourly || {};
     
     // Process each model
     const series: Record<string, any> = {};
     for (const m of MODELS) {
-      const cape = hourly['cape_' + m.id];
-      const li = hourly['li_' + m.id];
-      const cin = hourly['cin_' + m.id];
+      const cape = hourly['cape_' + m.id] || hourly['cape'];
+      const li = hourly['lifted_index_' + m.id] || hourly['lifted_index'];
+      const cin = hourly['convective_inhibition_' + m.id] || hourly['convective_inhibition'];
       if (cape || li || cin) series[m.id] = { cape, li, cin };
     }
     
@@ -112,8 +110,8 @@ export async function loadStorm(): Promise<void> {
     
     // Limits
     if (limitsEl) {
-      const missing = MODELS.filter(m => !series[m.id]).map(m => m.name);
-      limitsEl.textContent = missing.length ? 'Thieu du lieu tu: ' + missing.join(', ') : 'Tat ca ' + MODELS.length + ' mo hinh co du lieu.';
+      const missing = MODELS.filter((m: { id: string; name: string }) => !series[m.id]).map((m: { id: string; name: string }) => m.name);
+      limitsEl.textContent = missing.length ? 'Thiếu dữ liệu từ: ' + missing.join(', ') : 'Tất cả ' + MODELS.length + ' mô hình có dữ liệu.';
     }
     
   } catch (err) {

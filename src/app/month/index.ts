@@ -3,10 +3,10 @@
  * Monthly calendar with observations and forecasts
  */
 
-import { selectors } from '../state/index.js';
+import { selectors, actions } from '../state/index.js';
 import { $, fmt, finite, dateDM, todayISO, esc } from '../helpers/index.js';
 import { MONTH_NAMES, DAY_NAMES_SHORT } from '../constants/index.js';
-import { actions } from '../state/index.js';
+import { renderDayDetail } from '../days/index.js';
 
 /** Load and render month calendar */
 export function loadMonthCal(): void {
@@ -127,7 +127,7 @@ export function loadMonthCal(): void {
   // Add click handlers for days with forecast
   container.querySelectorAll('td.day[data-date]').forEach(td => {
     td.addEventListener('click', () => {
-      const date = td.dataset.date!;
+      const date = (td as HTMLElement).dataset['date']!;
       if (forecastByDate[date]) {
         actions.setSelectedDay(date);
         renderDayDetail(date);
@@ -146,17 +146,4 @@ export function loadMonthCal(): void {
   if (metaEl) {
     metaEl.textContent = forecastDays + ' ngày có dự báo trong tháng \u00B7 ' + pastDays + ' ngày đã qua \u00B7 Chỉ có dự báo đến 16 ngày';
   }
-}
-
-/** Get current month offset from state */
-function currentMonthOffset(): number {
-  return actions as any; // Access via state.ui.monthOffset
-}
-
-/** Render day detail (imported from days module) */
-function renderDayDetail(date: string): void {
-  // This is handled by days module
-  // Just trigger the event
-  const event = new CustomEvent('daySelected', { detail: { date } });
-  window.dispatchEvent(event);
 }

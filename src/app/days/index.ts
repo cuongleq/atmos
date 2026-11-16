@@ -3,7 +3,7 @@
  * Daily forecast rendering
  */
 
-import { selectors } from '../state/index.js';
+import { selectors, actions } from '../state/index.js';
 import { $, fmt, pct, finite, condition, weatherFamily, esc, dateDM } from '../helpers/index.js';
 
 let selectedDay: string | null = null;
@@ -59,7 +59,7 @@ export function renderDays(): void {
   // Add click handlers
   container.querySelectorAll('.day-card').forEach(btn => {
     btn.addEventListener('click', () => {
-      const date = btn.dataset.date!;
+      const date = (btn as HTMLElement).dataset['date']!;
       selectedDay = date;
       actions.setSelectedDay(date);
       renderDays(); // Re-render to update selection
@@ -87,7 +87,7 @@ export function renderDayDetail(date: string): void {
   // Find hours for this date
   const dayHours = hourly.time
     .map((t: string, i: number) => ({ time: t, idx: i }))
-    .filter(({ time }) => time.startsWith(date))
+    .filter(({ time }: { time: string; idx: number }) => time.startsWith(date))
     .slice(0, 24);
   
   if (!dayHours.length) {

@@ -3,7 +3,7 @@
  * External data layers: radar, tropical cyclones, alerts
  */
 
-import { selectors } from '../state/index.js';
+import { selectors, actions } from '../state/index.js';
 import { $, fmt, finite, esc, distanceKm } from '../helpers/index.js';
 import { api } from '../api/index.js';
 import { cycloneManager, initCycloneFeature, getCycloneDisplayData } from '../../features/cyclone/api.js';
@@ -47,8 +47,8 @@ function setupDisasterEvents(): void {
   const disasterChipsContainer = document.getElementById('disasterChips');
   if (disasterChipsContainer) {
     disasterChipsContainer.addEventListener('click', (e) => {
-      const chip = (e.target as HTMLElement).closest('.chip');
-      if (chip) selectDisasterChip(chip.dataset.id!);
+      const chip = (e.target as HTMLElement).closest('.chip') as HTMLElement | null;
+      if (chip && chip.dataset['id']) selectDisasterChip(chip.dataset['id']);
     });
   }
 }
@@ -141,11 +141,12 @@ async function handleDisasterSearch(e: Event): Promise<void> {
       
       container.querySelectorAll('.search-result').forEach(btn => {
         btn.addEventListener('click', () => {
+          const el = btn as HTMLElement;
           const place = {
             id: 'disaster-' + Date.now(),
-            name: btn.dataset.name!,
-            lat: parseFloat(btn.dataset.lat!),
-            lon: parseFloat(btn.dataset.lon!),
+            name: el.dataset['name']!,
+            lat: parseFloat(el.dataset['lat']!),
+            lon: parseFloat(el.dataset['lon']!),
           };
           actions.setPlace(place);
           syncDisasterToPlace();
@@ -227,10 +228,9 @@ function renderRadarFrame(index: number): void {
   const tileUrl = 'https://tilecache.rainviewer.com/v2/radar/{z}/{x}/{y}/' + frame.path + '/256.png';
   
   // Initialize map if needed
+  const L = (window as any).L;
+  if (!L) { mapEl.innerHTML = '<p class="muted">Leaflet chưa tải.</p>'; return; }
   if (!(mapEl as any)._leafletMap) {
-    const L = (window as any).L;
-    if (!L) { mapEl.innerHTML = '<p class="muted">Leaflet chua tai.</p>'; return; }
-    
     const map = L.map(mapEl, { center: [place.lat, place.lon], zoom: 7, zoomControl: true });
     (mapEl as any)._leafletMap = map;
     
@@ -301,17 +301,17 @@ async function loadTropicalCyclones(): Promise<void> {
         const coords = e.geometry?.coordinates;
         let dist = '\u2014';
         if (coords && coords.length >= 2) {
-          dist = fmt(distanceKm(place, { lat: coords[1], lon: coords[0] }), 0) + ' km';
+          dist = fmt(distanceKm(place, { id: 'tc', name: 'TC', lat: coords[1], lon: coords[0] }), 0) + ' km';
         }
         
         return '<div class="tc-item">' +
           '<strong>' + esc(props.eventname || 'TC') + '</strong> ' + esc(props.alertlevel || '') +
-          '<br><small>' + esc(props.fromdate) + ' \u2192 ' + esc(props.todate) + ' \u00B7 ' + dist + ' tu vi tri hien tai</small>' +
-          '<br><a href="' + esc(props.url || '#') + '" target="_blank" rel="noopener" class="btn-ghost" style="padding:2px 8px;font-size:11px;">Xem chi tiet</a>' +
+          '<br><small>' + esc(props.fromdate) + ' \u2192 ' + esc(props.todate) + ' \u00B7 ' + dist + ' từ vị trí hiện tại</small>' +
+          '<br><a href="' + esc(props.url || '#') + '" target="_blank" rel="noopener" class="btn-ghost" style="padding:2px 8px;font-size:11px;">Xem chi tiết</a>' +
         '</div>';
       }).join('');
       
-      if (metaEl) metaEl.textContent = events.length + ' xoay nhiet do \u00B7 Cap nhat ' + new Date().toLocaleString('vi-VN');
+      if (metaEl) metaEl.textContent = events.length + ' xoáy nhiệt đới \u00B7 Cập nhật ' + new Date().toLocaleString('vi-VN');
       return;
     }
     
@@ -322,12 +322,12 @@ async function loadTropicalCyclones(): Promise<void> {
       const coords = cyclone.positions[0];
       let dist = '\u2014';
       if (coords) {
-        dist = fmt(distanceKm(place, { lat: coords.lat, lon: coords.lon }), 0) + ' km';
+        dist = fmt(distanceKm(place, { id: 'tc', name: cyclone.name, lat: coords.lat, lon: coords.lon }), 0) + ' km';
       }
       
       return '<div class="tc-item">' +
         '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
-          '<span style="font-size: 20px;">' + display.icon + '</span>' +
+          '<span style="font-size: 20px;">\uD83C\uDF00</span>' +
           '<div>' +
             '<strong>' + esc(cyclone.name) + '</strong> ' +
             '<span style="background: ' + display.categoryColor + '; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">' +
@@ -374,8 +374,9 @@ async function loadAlerts(): Promise<void> {
     
     listEl.innerHTML = events.slice(0, 15).map((e: any) => {
       const props = e.properties;
-      const type = props.eventtype || 'UNKNOWN';
-      const icon = { EQ: '\uD83C\uDF0D', TC: '\uD83C\uDF00', FL: '\uD83C\uDF0A', DR: '\u2600\uFE0F', WF: '\uD83D\uDD25', VO: '\uD83C\uDF0B' }[type] || '\u26A0\uFE0F';
+      const type = String(props.eventtype || 'UNKNOWN');
+      const icons: Record<string, string> = { EQ: '\uD83C\uDF0D', TC: '\uD83C\uDF00', FL: '\uD83C\uDF0A', DR: '\u2600\uFE0F', WF: '\uD83D\uDD25', VO: '\uD83C\uDF0B' };
+      const icon = icons[type] || '\u26A0\uFE0F';
       
       return '<div class="alert-item">' +
         icon + ' <strong>' + esc(props.eventname || type) + '</strong> ' + esc(props.alertlevel || '') +

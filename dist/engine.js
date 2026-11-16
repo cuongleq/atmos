@@ -7,7 +7,7 @@ if (typeof AtmosEngine !== "undefined" && typeof globalThis !== "undefined") {
 
 // Inject E namespace for backward compatibility
 if (typeof AtmosEngine !== "undefined") {
-  AtmosEngine.E = {
+  AtmosEngine.E = Object.assign({}, AtmosEngine, {
     finite: AtmosEngine.finite,
     meanS: AtmosEngine.meanS,
     varS: AtmosEngine.varS,
@@ -36,6 +36,8 @@ if (typeof AtmosEngine !== "undefined") {
     PseudoMembersOptions: AtmosEngine.PseudoMembersOptions,
     rollingFolds: AtmosEngine.rollingFolds,
     calibrate: AtmosEngine.calibrate,
+    calibrateDirection: AtmosEngine.calibrateDirection,
+    calibrateCode: AtmosEngine.calibrateCode,
     evaluate: AtmosEngine.evaluate,
     calibrationBundle: AtmosEngine.calibrationBundle,
     predictFromCalibration: AtmosEngine.predictFromCalibration,
@@ -43,28 +45,36 @@ if (typeof AtmosEngine !== "undefined") {
     regimeKey: AtmosEngine.regimeKey,
     condGroup: AtmosEngine.condGroup,
     conditionOf: AtmosEngine.conditionOf,
+    CONDITIONS: AtmosEngine.CONDITIONS,
     VARIABLES: AtmosEngine.VARIABLES,
     distanceKm: AtmosEngine.distanceKm,
     bearingDeg: AtmosEngine.bearingDeg,
+    offsetLatLon: AtmosEngine.offsetLatLon,
+    nearestOnTrack: AtmosEngine.nearestOnTrack,
     toUms: AtmosEngine.toUms,
+    windBarb: AtmosEngine.windBarb,
     airMass: AtmosEngine.airMass,
+    airMassGrid: AtmosEngine.airMassGrid,
+    classifyCell: AtmosEngine.classifyCell,
     thickness: AtmosEngine.thickness,
     frontalPassage: AtmosEngine.frontalPassage,
     trajectory: AtmosEngine.trajectory,
     floodLevels: AtmosEngine.floodLevels,
     nominalStage: AtmosEngine.nominalStage,
+    stageToQ: AtmosEngine.stageToQ,
     riverRisk: AtmosEngine.riverRisk,
     lightningIndex: AtmosEngine.lightningIndex,
     lightningVerify: AtmosEngine.lightningVerify,
+    lightningBands: AtmosEngine.lightningBands,
+    lightningLevel: AtmosEngine.lightningLevel,
     logisticCalibrate: AtmosEngine.logisticCalibrate,
     isotonicCalibrate: AtmosEngine.isotonicCalibrate,
     dailyAccumulation: AtmosEngine.dailyAccumulation,
     evaluateCode: AtmosEngine.evaluateCode,
     evaluateDirection: AtmosEngine.evaluateDirection,
     modelSelection: AtmosEngine.modelSelection,
-    evaluateScalar: AtmosEngine.evaluateScalar,
-    evaluate: AtmosEngine.evaluate
-  };
+    evaluateScalar: AtmosEngine.evaluateScalar
+  });
 }
 
 //# sourceMappingURL=engine.js.map

@@ -17,10 +17,14 @@ export function renderNchmf(): void {
   if (!wrapper || !listEl || !metaEl) return;
   
   // Get NCHMF data from embedded JSON
-  let nchmfData = { collectedAt: null, categories: [], errors: ['chua thu thap'] };
+  let nchmfData: { collectedAt: string | null; categories: any[]; errors?: string[] } = {
+    collectedAt: null,
+    categories: [],
+    errors: ['chua thu thap'],
+  };
   try {
     const el = document.getElementById('nchmf-data');
-    if (el) nchmfData = JSON.parse(el.textContent);
+    if (el && el.textContent) nchmfData = JSON.parse(el.textContent);
   } catch {}
   
   if (btn) {
@@ -54,12 +58,12 @@ export function renderNchmf(): void {
     
     for (const item of items.slice(0, 10)) {
       const { title, url, published_at, severity } = item;
-      const date = published_at ? new Date(published_at) : null;
+      const dateStr = published_at ? String(published_at) : null;
       
       html += '<li class="nchmf-item' + (severity ? ' ' + severity : '') + '">';
       html += '<a href="' + esc(url) + '" target="_blank" rel="noopener" class="nchmf-title">' + esc(title) + '</a>';
-      if (date) {
-        html += '<span class="nchmf-meta">' + dateDM(date) + ' ' + timeHM(date) + '</span>';
+      if (dateStr) {
+        html += '<span class="nchmf-meta">' + dateDM(dateStr) + ' ' + timeHM(dateStr) + '</span>';
       }
       html += '</li>';
     }
@@ -76,7 +80,7 @@ export function filterNews(filter: string): void {
   const intlWrapper = document.getElementById('intlSectionWrapper');
   const buttons = document.querySelectorAll('.news-filter-btn');
   
-  buttons.forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+  buttons.forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset['filter'] === filter));
   
   switch (filter) {
     case 'vn':

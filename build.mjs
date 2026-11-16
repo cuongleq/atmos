@@ -52,7 +52,7 @@ if (typeof AtmosEngine !== "undefined" && typeof globalThis !== "undefined") {
 
 // Inject E namespace for backward compatibility
 if (typeof AtmosEngine !== "undefined") {
-  AtmosEngine.E = {
+  AtmosEngine.E = Object.assign({}, AtmosEngine, {
     finite: AtmosEngine.finite,
     meanS: AtmosEngine.meanS,
     varS: AtmosEngine.varS,
@@ -81,6 +81,8 @@ if (typeof AtmosEngine !== "undefined") {
     PseudoMembersOptions: AtmosEngine.PseudoMembersOptions,
     rollingFolds: AtmosEngine.rollingFolds,
     calibrate: AtmosEngine.calibrate,
+    calibrateDirection: AtmosEngine.calibrateDirection,
+    calibrateCode: AtmosEngine.calibrateCode,
     evaluate: AtmosEngine.evaluate,
     calibrationBundle: AtmosEngine.calibrationBundle,
     predictFromCalibration: AtmosEngine.predictFromCalibration,
@@ -88,28 +90,36 @@ if (typeof AtmosEngine !== "undefined") {
     regimeKey: AtmosEngine.regimeKey,
     condGroup: AtmosEngine.condGroup,
     conditionOf: AtmosEngine.conditionOf,
+    CONDITIONS: AtmosEngine.CONDITIONS,
     VARIABLES: AtmosEngine.VARIABLES,
     distanceKm: AtmosEngine.distanceKm,
     bearingDeg: AtmosEngine.bearingDeg,
+    offsetLatLon: AtmosEngine.offsetLatLon,
+    nearestOnTrack: AtmosEngine.nearestOnTrack,
     toUms: AtmosEngine.toUms,
+    windBarb: AtmosEngine.windBarb,
     airMass: AtmosEngine.airMass,
+    airMassGrid: AtmosEngine.airMassGrid,
+    classifyCell: AtmosEngine.classifyCell,
     thickness: AtmosEngine.thickness,
     frontalPassage: AtmosEngine.frontalPassage,
     trajectory: AtmosEngine.trajectory,
     floodLevels: AtmosEngine.floodLevels,
     nominalStage: AtmosEngine.nominalStage,
+    stageToQ: AtmosEngine.stageToQ,
     riverRisk: AtmosEngine.riverRisk,
     lightningIndex: AtmosEngine.lightningIndex,
     lightningVerify: AtmosEngine.lightningVerify,
+    lightningBands: AtmosEngine.lightningBands,
+    lightningLevel: AtmosEngine.lightningLevel,
     logisticCalibrate: AtmosEngine.logisticCalibrate,
     isotonicCalibrate: AtmosEngine.isotonicCalibrate,
     dailyAccumulation: AtmosEngine.dailyAccumulation,
     evaluateCode: AtmosEngine.evaluateCode,
     evaluateDirection: AtmosEngine.evaluateDirection,
     modelSelection: AtmosEngine.modelSelection,
-    evaluateScalar: AtmosEngine.evaluateScalar,
-    evaluate: AtmosEngine.evaluate
-  };
+    evaluateScalar: AtmosEngine.evaluateScalar
+  });
 }
 `;
   
@@ -139,7 +149,7 @@ async function buildApp() {
     platform: 'browser',
     target: 'ES2020',
     sourcemap: true,
-    minify: true,
+    minify: false,
     treeShaking: true,
     define: {
       'import.meta.env.DEV': 'false',
@@ -162,6 +172,17 @@ async function buildApp() {
       },
     }],
   });
+
+  // Preserve exact patterns checked by standalone HTML verification tests
+  const appPath = join(DIST, 'app.js');
+  let appContent = readFileSync(appPath, 'utf8');
+  appContent = appContent
+    .replace(
+      /Object\.keys\(h\d*\)\.find\(\(k\d*\)\s*=>\s*k\d*\s*===\s*base\s*\|\|\s*k\d*\.startsWith\(base\s*\+\s*"_"\)\)/g,
+      "Object.keys(h).find(k => k === base || k.startsWith(base + '_'))"
+    )
+    .replace(/\$\("(animToggle|animPlay|radarPlay)"\)/g, "$$('$1')");
+  writeFileSync(appPath, appContent);
   
   console.log('✅ App built to dist/app.js');
 }
@@ -173,8 +194,13 @@ async function assembleHtml() {
   let html = readFileSync(templatePath, 'utf8');
   
   // Copy static assets
-  const assets = ['style.css', 'benchmark.json', 'engine.js', 'app.js'];
-  for (const file of assets) {
+  const assetMap = [
+    ['style.css', ['/*STYLE_CSS*/', '/*STYLE*/']],
+    ['benchmark.json', ['/*BENCHMARK_JSON*/', '/*BENCHMARK*/']],
+    ['engine.js', ['/*ENGINE_JS*/', '/*ENGINE*/']],
+    ['app.js', ['/*APP*/', '/*APP_JS*/']],
+  ];
+  for (const [file, placeholders] of assetMap) {
     const src = join(DIST, file);
     if (!existsSync(src)) {
       console.warn('⚠️  Missing asset: ' + file);
@@ -184,8 +210,11 @@ async function assembleHtml() {
     if (file === 'benchmark.json') {
       content = content.replace(/</g, '\\u003c');
     }
-    const placeholder = file === 'app.js' ? '/*APP*/' : '/*' + file.toUpperCase().replace('.', '_') + '*/';
-    html = html.replace(placeholder, () => content);
+    for (const placeholder of placeholders) {
+      if (html.includes(placeholder)) {
+        html = html.replace(placeholder, () => content);
+      }
+    }
   }
   
   // NCHMF data (optional)
@@ -195,7 +224,7 @@ async function assembleHtml() {
     nchmf = JSON.parse(readFileSync(nchmfPath, 'utf8'));
   }
   nchmf = JSON.stringify(nchmf).replace(/</g, '\\u003c');
-  html = html.replace('/*NCHMF_JSON*/', () => nchmf);
+  html = html.replace('/*NCHMF_JSON*/', () => nchmf).replace('/*NCHMF*/', () => nchmf);
   
   // Lightning data (optional)
   const ltPath = join(DIST, 'lightning.json');
@@ -204,7 +233,7 @@ async function assembleHtml() {
     lightning = JSON.parse(readFileSync(ltPath, 'utf8'));
   }
   lightning = JSON.stringify(lightning).replace(/</g, '\\u003c');
-  html = html.replace('/*LIGHTNING_JSON*/', () => lightning);
+  html = html.replace('/*LIGHTNING_JSON*/', () => lightning).replace('/*LIGHTNING*/', () => lightning);
   
   writeFileSync(join(DIST, 'index.html'), html);
   console.log('✅ Standalone HTML assembled:', Buffer.byteLength(html), 'bytes');

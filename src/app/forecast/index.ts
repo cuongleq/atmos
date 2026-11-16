@@ -4,7 +4,9 @@
  */
 
 // Get E from global namespace (set by engine bundle)
-const E = (typeof window !== 'undefined' && window.AtmosEngine) ? window.AtmosEngine.E : {};
+const E: any = (typeof window !== 'undefined' && (window as any).AtmosEngine)
+  ? ((window as any).AtmosEngine.E || (window as any).AtmosEngine)
+  : {};
 import { state, actions, selectors } from '../state/index.js';
 import { 
   calibrationFor, 
@@ -29,9 +31,19 @@ import {
   condition, 
   weatherFamily, 
   activeTimes,
-  esc 
+  esc,
+  finite,
+  fmtWind
 } from '../helpers/index.js';
 import { DEFAULT_PLACE, CHART_HORIZONS } from '../constants/index.js';
+import { renderChart } from '../chart/index.js';
+import { renderParams } from '../params/index.js';
+import { renderDays, clearDayDetail } from '../days/index.js';
+import { loadMonthCal } from '../month/index.js';
+import { loadAqi } from '../aqi/index.js';
+import { loadAirMassAndRivers } from '../airmass/index.js';
+import { renderNchmf } from '../nchmf/index.js';
+import { syncDisasterToPlace } from '../disaster/index.js';
 import { loadFloodData } from '../../features/flood/api.js';
 
 /** Initialize forecast module */
@@ -154,7 +166,8 @@ async function handleSearch(e: Event): Promise<void> {
       notice('liveStatus', 'Không tìm thấy địa điểm: ' + query, 'error');
     }
   } catch (err) {
-    notice('liveStatus', 'Lỗi tìm kiếm: ' + err.message, 'error');
+    const msg = err instanceof Error ? err.message : String(err);
+    notice('liveStatus', 'Lỗi tìm kiếm: ' + msg, 'error');
   } finally {
     actions.setLoading('forecast', false);
   }
@@ -171,15 +184,16 @@ function showSearchResults(results: any[]): void {
     '</button>'
   ).join('');
   
-  container.style.display = 'block';
+  container.style.display = 'flex';
   
   container.querySelectorAll('.search-result').forEach(btn => {
     btn.addEventListener('click', () => {
+      const el = btn as HTMLElement;
       const place: Place = {
         id: 'search-' + Date.now(),
-        name: btn.dataset.name!,
-        lat: parseFloat(btn.dataset.lat!),
-        lon: parseFloat(btn.dataset.lon!),
+        name: el.dataset['name']!,
+        lat: parseFloat(el.dataset['lat']!),
+        lon: parseFloat(el.dataset['lon']!),
         utcOffset: 7,
       };
       actions.setPlace(place);
@@ -199,31 +213,133 @@ function showSearchResults(results: any[]): void {
   setTimeout(() => document.addEventListener('click', closeHandler), 0);
 }
 
+/** Reverse geocode coordinates to Vietnamese locality name */
+async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+  try {
+    const r = await fetch(
+      'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=vi'
+    );
+    if (r.ok) {
+      const j = await r.json();
+      const parts = [j.city || j.locality, j.principalSubdivision].filter(Boolean);
+      const name = [...new Set(parts.filter((p: string) => p && !parts.some((q: string) => q !== p && q.includes(p))))].slice(0, 2).join(', ');
+      if (name || j.countryName) return name || j.countryName;
+    }
+  } catch {}
+  try {
+    const r = await fetch(
+      'https://nominatim.openstreetmap.org/reverse?' + new URLSearchParams({
+        lat: String(lat), lon: String(lon), format: 'jsonv2', 'accept-language': 'vi',
+      }),
+      { headers: { Accept: 'application/json' } }
+    );
+    if (r.ok) {
+      const j = await r.json();
+      const a = j.address || {};
+      const parts = [a.suburb || a.village || a.town || a.city_district || a.city, a.state || a.county].filter(Boolean);
+      if (parts.length) return parts.slice(0, 2).join(', ');
+    }
+  } catch {}
+  return null;
+}
+
+/** Fallback IP-based geolocation when GPS is unavailable or blocked */
+async function fetchIpLocation(): Promise<{ lat: number; lon: number; name: string | null } | null> {
+  try {
+    const r = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=vi');
+    if (r.ok) {
+      const j = await r.json();
+      if (finite(j.latitude) && finite(j.longitude)) {
+        const parts = [j.city || j.locality, j.principalSubdivision].filter(Boolean);
+        const name = [...new Set(parts.filter((p: string) => p && !parts.some((q: string) => q !== p && q.includes(p))))].slice(0, 2).join(', ');
+        return { lat: +Number(j.latitude).toFixed(4), lon: +Number(j.longitude).toFixed(4), name: name || j.countryName || null };
+      }
+    }
+  } catch {}
+  try {
+    const r = await fetch('https://ipwho.is/?lang=vi');
+    if (r.ok) {
+      const j = await r.json();
+      if (j.success !== false && finite(j.latitude) && finite(j.longitude)) {
+        const name = [j.city, j.region].filter(Boolean).join(', ');
+        return { lat: +Number(j.latitude).toFixed(4), lon: +Number(j.longitude).toFixed(4), name: name || j.country || null };
+      }
+    }
+  } catch {}
+  try {
+    const r = await fetch('https://get.geojs.io/v1/ip/geo.json');
+    if (r.ok) {
+      const j = await r.json();
+      const lat = parseFloat(j.latitude), lon = parseFloat(j.longitude);
+      if (finite(lat) && finite(lon)) {
+        const name = [j.city, j.region].filter(Boolean).join(', ');
+        return { lat: +lat.toFixed(4), lon: +lon.toFixed(4), name: name || j.country || null };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 /** Handle geolocation */
 function handleGeoLocation(): void {
-  if (!navigator.geolocation) {
-    notice('liveStatus', 'Trình duyệt không hỗ trợ GPS', 'error');
+  const noteEl = document.getElementById('geoNote');
+  const applyIpFallback = async (reason?: string) => {
+    notice('liveStatus', 'Đang xác định vị trí qua mạng…');
+    const ipLoc = await fetchIpLocation();
+    if (ipLoc) {
+      const name = ipLoc.name || (await reverseGeocode(ipLoc.lat, ipLoc.lon)) || 'Vị trí của tôi';
+      const place: Place = {
+        id: 'gps',
+        name,
+        lat: ipLoc.lat,
+        lon: ipLoc.lon,
+        utcOffset: 7,
+      };
+      actions.setPlace(place);
+      if (noteEl) {
+        noteEl.textContent = 'Đã lấy vị trí theo mạng: ' + name + (reason ? ' (GPS: ' + reason + ').' : '.');
+      }
+      void loadForecast();
+    } else {
+      notice('liveStatus', 'Không lấy được vị trí' + (reason ? ': ' + reason : '') + '. Hãy dùng ô tìm kiếm hoặc chọn tỉnh/thành bên dưới.', 'error');
+    }
+  };
+
+  if (!navigator.geolocation || !window.isSecureContext) {
+    void applyIpFallback(!window.isSecureContext ? 'cần HTTPS' : 'thiết bị không có GPS');
     return;
   }
   
   notice('liveStatus', 'Đang lấy vị trí GPS…');
+  if (noteEl) noteEl.textContent = 'Đang xin quyền dùng vị trí…';
   
   navigator.geolocation.getCurrentPosition(
-    pos => {
+    async pos => {
+      const lat = +pos.coords.latitude.toFixed(4);
+      const lon = +pos.coords.longitude.toFixed(4);
+      const name = (await reverseGeocode(lat, lon)) || 'Vị trí của tôi';
       const place: Place = {
-        id: 'gps-' + Date.now(),
-        name: 'Vị trí GPS',
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
+        id: 'gps',
+        name,
+        lat,
+        lon,
         utcOffset: 7,
       };
       actions.setPlace(place);
-      loadForecast();
+      if (noteEl) {
+        noteEl.textContent = 'Đã dùng vị trí thiết bị: ' + name + '. Chọn lại địa điểm khác sẽ tắt chế độ này.';
+      }
+      void loadForecast();
     },
     err => {
-      notice('liveStatus', 'Không lấy được vị trí: ' + err.message, 'error');
+      const reasons: Record<number, string> = {
+        1: 'quyền vị trí bị từ chối',
+        2: 'không lấy được tín hiệu GPS',
+        3: 'hết thời gian chờ GPS',
+      };
+      void applyIpFallback(reasons[err.code] || err.message);
     },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
   );
 }
 
@@ -267,7 +383,7 @@ export async function loadForecast(): Promise<void> {
     syncDisasterToPlace();
     
     // Status message
-    const failed = fc.models.filter(m => !m).length;
+    const failed = fc.models.filter((m: any) => !m).length;
     notice('liveStatus', failed
       ? MODELS.length - failed + '/' + MODELS.length + ' hệ thống có dữ liệu. Hệ thống thiếu được bỏ qua, giá trị thiếu không được coi là 0.'
       : 'Đã tải ' + MODELS.length + ' hệ thống và hiệu chỉnh bằng hệ số đã kiểm thử. Múi giờ ' + fc.base.timezone + '.',
@@ -455,7 +571,7 @@ function renderRain24(): void {
 }
 
 /** Export forecast to CSV */
-function exportCsv(): void {
+export function exportCsv(): void {
   const live = selectors.currentLive();
   const report = selectors.currentReport();
   if (!live || !report) return;

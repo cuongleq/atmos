@@ -5,7 +5,7 @@
 
 import { state, selectors, actions } from '../state/index.js';
 import { calibrationFor, computePooledForecast } from '../calibration/index.js';
-import { $, fmt, pct, finite, getDigits, getUnit, esc } from '../helpers/index.js';
+import { $, fmt, pct, finite, getDigits, getUnit, esc, activeTimes } from '../helpers/index.js';
 import { CHART_HORIZONS } from '../constants/index.js';
 
 /** Initialize chart module */
@@ -364,7 +364,7 @@ function updateSpreadNote(
 /** Get consistent color for model */
 function getModelColor(id: string): string {
   const colors = ['#3479be', '#ce6b2f', '#648b39', '#8e5ba6', '#0f8f8f', '#a8324a', '#5c6b7a'];
-  const idx = MODELS.findIndex(m => m.id === id);
+  const idx = MODELS.findIndex((m: { id: string; name: string }) => m.id === id);
   return colors[idx >= 0 ? idx : Math.abs(hashCode(id)) % colors.length];
 }
 

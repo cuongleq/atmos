@@ -83,14 +83,19 @@ export function initSentry(config: {
     return transaction;
   };
 
+  const browserTracing = (Sentry as any).browserTracingIntegration
+    ? (Sentry as any).browserTracingIntegration()
+    : BrowserTracing
+      ? new (BrowserTracing as any)({ tracingOrigins: ['localhost', /^\//, /^https:\/\/api\.open-meteo\.com/], trackComponents: true })
+      : null;
+
   Sentry.init({
     dsn: config.dsn,
     environment: config.environment,
     release: config.release,
     tracesSampleRate: config.tracesSampleRate,
-    profilesSampleRate: config.profilesSampleRate,
     debug: config.debug,
-    integrations: [new Sentry.BrowserTracing({ tracingOrigins: ['localhost', /^\//, /^https:\/\/api\.open-meteo\.com/], trackComponents: true })],
+    integrations: browserTracing ? [browserTracing] : [],
     beforeSend: bs,
     beforeSendTransaction: bst,
     fingerprint: ['{{ default }}'],
@@ -111,14 +116,14 @@ function setupGlobalHandlers(): void {
 
 export function setUserContext(user: { id: string; email?: string; username?: string; ip_address?: string }): void { Sentry.setUser(user); }
 export function clearUserContext(): void { Sentry.setUser(null); }
-export function addBreadcrumb(category: string, message: string, level = 'info', data?: Record<string, unknown>): void { Sentry.addBreadcrumb({ category, message, level, data, timestamp: Date.now() / 1000 }); }
-export function startTransaction(name: string, op: string, tags?: Record<string, string>): any { return Sentry.startTransaction({ name, op, tags }); }
-export function captureException(error: Error | unknown, context?: Record<string, unknown>): string { return Sentry.captureException(error, { extra: context }); }
-export function captureMessage(message: string, level = 'info', context?: Record<string, unknown>): string { return Sentry.captureMessage(message, level, { extra: context }); }
+export function addBreadcrumb(category: string, message: string, level: any = 'info', data?: Record<string, unknown>): void { Sentry.addBreadcrumb({ category, message, level, data, timestamp: Date.now() / 1000 }); }
+export function startTransaction(name: string, op: string, tags?: Record<string, string>): any { return (Sentry as any).startSpan ? (Sentry as any).startSpan({ name, op, attributes: tags }, () => {}) : null; }
+export function captureException(error: Error | unknown, context?: Record<string, unknown>): string { return Sentry.captureException(error, context ? { extra: context } : undefined); }
+export function captureMessage(message: string, level: any = 'info', context?: Record<string, unknown>): string { return Sentry.captureMessage(message, context ? { level, extra: context } : level); }
 export function setTags(tags: Record<string, string>): void { Object.entries(tags).forEach(([key, value]) => Sentry.setTag(key, value)); }
 export function setExtras(extras: Record<string, unknown>): void { Object.entries(extras).forEach(([key, value]) => Sentry.setExtra(key, value)); }
 export function getSentry(): typeof Sentry { return Sentry; }
-export function isSentryInitialized(): boolean { return Sentry.getCurrentHub().getClient() !== undefined; }
+export function isSentryInitialized(): boolean { return typeof (Sentry as any).getClient === 'function' ? (Sentry as any).getClient() !== undefined : false; }
 export function flushSentry(timeout = 2000): Promise<boolean> { return Sentry.flush(timeout); }
 
 function initializeClient(): void {

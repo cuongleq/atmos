@@ -18,7 +18,7 @@ const MODELS = (window as any).AtmosEngine?.MODELS || [
 ];
 
 // Level models are the same as MODELS (all deterministic models)
-const LEVEL_MODELS = MODELS.map(m => m.id);
+const LEVEL_MODELS: string[] = MODELS.map((m: { id: string; name: string }) => m.id);
 
 export { MODELS, LIVE_VARS, LEVEL_VARS, LEVEL_MODELS };
 
@@ -58,7 +58,7 @@ class RateLimiter {
       
       this.lastRequest = Date.now();
       const fn = this.queue.shift()!;
-      await fn();
+      void fn();
     }
     
     this.processing = false;
@@ -154,8 +154,8 @@ export async function fetchPlaceData(place: any, models: any[]): Promise<any> {
   // Fetch base (multi-model) forecast
   const basePromise = api('https://api.open-meteo.com/v1/forecast', {
     ...baseParams,
-    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m',
-    hourly: [...LIVE_VARS, 'weather_code', 'wind_gusts_10m', 'precipitation_probability'].join(','),
+    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m',
+    hourly: [...new Set([...LIVE_VARS, 'weather_code', 'wind_gusts_10m', 'precipitation_probability'])].join(','),
     daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,weather_code,sunrise,sunset',
   });
 

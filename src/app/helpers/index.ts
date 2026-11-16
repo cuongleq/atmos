@@ -7,17 +7,23 @@ import { Place } from '../types/app.js';
 import { BEARINGS, COMPASS8, WEATHER_FAMILY_ICON } from '../constants/index.js';
 
 // Get E namespace from global AtmosEngine (set by engine bundle)
-const E = (typeof window !== 'undefined' && window.AtmosEngine?.E) ? window.AtmosEngine.E : {};
+const E: any = (typeof window !== 'undefined' && (window as any).AtmosEngine)
+  ? ((window as any).AtmosEngine.E || (window as any).AtmosEngine)
+  : {};
 
 /** Format number with Vietnamese locale */
 export const fmt = (v: number | null | undefined, n = 1): string => {
-  if (!E.finite(v)) return '\u2014';
+  if (v == null || !E.finite?.(v)) {
+    return '\u2014';
+  }
   return v.toLocaleString('vi-VN', { minimumFractionDigits: n, maximumFractionDigits: n });
 };
 
 /** Format percentage */
 export const pct = (v: number | null | undefined, n = 0): string => {
-  if (!E.finite(v)) return '\u2014';
+  if (v == null || !E.finite?.(v)) {
+    return '\u2014';
+  }
   return fmt(v * 100, n) + ' %';
 };
 
@@ -52,27 +58,33 @@ export const condition = (code: number | null | undefined): string => E.conditio
 
 /** Convert bearing degrees to Vietnamese compass */
 export const bearing = (deg: number | null | undefined): string => {
-  if (!E.finite(deg)) return '\u2014';
+  if (deg == null || !E.finite?.(deg)) {
+    return '\u2014';
+  }
   const d = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
-  return `${Math.round(deg!)}\u00B0 ${BEARINGS[d]}`;
+  return `${Math.round(deg)}\u00B0 ${BEARINGS[d]}`;
 };
 
 /** Get compass direction (8-point) */
 export const compass = (deg: number | null | undefined): string => {
-  if (!E.finite(deg)) return '\u2014';
+  if (deg == null || !E.finite?.(deg)) {
+    return '\u2014';
+  }
   const d = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return COMPASS8[d];
+  return COMPASS8[d] || '\u2014';
 };
 
 /** Get weather family icon from code */
 export const weatherFamily = (code: number | null | undefined): string => {
-  const g = E.condGroup(code);
+  const g = E.condGroup?.(code);
   return WEATHER_FAMILY_ICON[g as keyof typeof WEATHER_FAMILY_ICON] || '\u2014';
 };
 
 /** Format distance */
 export const fmtDistance = (km: number | null | undefined): string => {
-  if (!E.finite(km)) return '\u2014';
+  if (km == null || !E.finite?.(km)) {
+    return '\u2014';
+  }
   return fmt(km, km < 10 ? 1 : 0);
 };
 
@@ -165,8 +177,10 @@ export function levelNowIndex(levels: any): number | null {
 /** Get series aligned to target time array */
 export function levelSeries(levels: any, id: string, variable: string, time: string[]): (number | null)[] {
   const col = levels?.series?.[id]?.[variable];
-  if (!col) return time.map(() => null);
-  const idx = new Map(levels.time.map((t: string, i: number) => [t, i]));
+  if (!col) {
+    return time.map(() => null);
+  }
+  const idx = new Map<string, number>(levels.time.map((t: string, i: number) => [t, i]));
   return time.map(t => {
     const k = idx.get(t);
     return k == null ? null : col[k];

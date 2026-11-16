@@ -155,7 +155,7 @@ export const actions = {
     state.error.set(message);
   },
   
-  setActiveTab(tab: typeof state.ui.activeTab): void {
+  setActiveTab(tab: 'forecast' | 'mass' | 'news' | 'methods' | 'disaster'): void {
     state.ui.activeTab.set(tab);
   },
   
@@ -237,7 +237,17 @@ export function persistPlace(): void {
 export function restorePlace(): Place | null {
   try {
     const stored = localStorage.getItem('atmos-last-place');
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (
+        parsed &&
+        typeof parsed.lat === 'number' && Number.isFinite(parsed.lat) &&
+        typeof parsed.lon === 'number' && Number.isFinite(parsed.lon) &&
+        typeof parsed.name === 'string' && parsed.name.trim().length > 0
+      ) {
+        return parsed;
+      }
+    }
   } catch {}
   return null;
 }

@@ -11,6 +11,8 @@ import {
   api,
   MODELS 
 } from '../api/index.js';
+import { loadRivers } from '../rivers/index.js';
+import { loadStorm } from '../storm/index.js';
 
 let levelsToken = 0;
 
@@ -19,10 +21,13 @@ export async function loadAirMassAndRivers(): Promise<void> {
   const place = selectors.currentPlace();
   
   // Load pressure levels
-  loadLevels(place);
+  void loadLevels(place);
   
   // Load rivers
-  loadRivers(place);
+  void loadRivers();
+  
+  // Load storm index
+  void loadStorm();
 }
 
 /** Fetch and render pressure level data */
@@ -32,12 +37,12 @@ async function loadLevels(place: any): Promise<void> {
   
   try {
     const u = new URLSearchParams({
-      latitude: place.lat,
-      longitude: place.lon,
+      latitude: String(place.lat),
+      longitude: String(place.lon),
       hourly: LEVEL_VARS.join(','),
       models: LEVEL_MODELS.join(','),
-      past_days: 7,
-      forecast_days: 7,
+      past_days: '7',
+      forecast_days: '7',
       timezone: 'auto',
     });
     
@@ -98,7 +103,7 @@ function renderAirMass(): void {
   
   // Mean fields
   const t850 = levelMean(time, 'temperature_850hPa', levels);
-  const thick = time.map((_, i) => E.thickness(
+  const thick = time.map((_: string, i: number) => E.thickness(
     levelMean(time, 'geopotential_height_500hPa', levels)[i],
     levelMean(time, 'geopotential_height_850hPa', levels)[i]
   ));
@@ -151,7 +156,8 @@ function renderAirMass(): void {
     hoursBack: 12 
   });
   
-  const tagClass = am ? { cold: 'cold', warm: 'warm', cool: 'cool', mild: 'mild', neutral: 'neutral' }[am.tone] : 'neutral';
+  const tones: Record<string, string> = { cold: 'cold', warm: 'warm', cool: 'cool', mild: 'mild', neutral: 'neutral' };
+  const tagClass = am ? (tones[am.tone] || 'neutral') : 'neutral';
   
   if (metaEl) metaEl.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN');
   
@@ -258,7 +264,7 @@ function renderTrajectory(): void {
 function levelSeries(id: string, variable: string, time: string[], levels: any): (number | null)[] {
   const col = levels?.series?.[id]?.[variable];
   if (!col) return time.map(() => null);
-  const idx = new Map(levels.time.map((t: string, i: number) => [t, i]));
+  const idx = new Map<string, number>(levels.time.map((t: string, i: number) => [t, i]));
   return time.map(t => {
     const k = idx.get(t);
     return k == null ? null : col[k];

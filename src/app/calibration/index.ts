@@ -16,11 +16,19 @@ export function calibrationFor(
   // Get E from global namespace
   const E = (window as any).AtmosEngine;
   
-  // 1. Try location-specific calibration
-  const loc = report.locations.find(l => l.id === place.id);
+  // 1. Try location-specific calibration (exact ID or within 25km)
+  let loc = report.locations.find(l => l.id === place.id);
+  if (!loc && finite(place.lat) && finite(place.lon)) {
+    const nearLoc = report.locations
+      .map(l => ({ l, km: E.distanceKm(place, l) }))
+      .sort((a, b) => a.km - b.km)[0];
+    if (nearLoc && nearLoc.km <= 25) {
+      loc = nearLoc.l;
+    }
+  }
   const own = loc?.tests.find(t => t.usable && t.variable === variable && t.lead === lead);
   
-  if (own?.calibration) {
+  if (own?.calibration && loc) {
     return {
       calib: own.calibration,
       source: loc.name,

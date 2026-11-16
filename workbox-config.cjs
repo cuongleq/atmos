@@ -26,15 +26,16 @@ module.exports = {
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/api\.open-meteo\.com\/v1\/forecast/,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'open-meteo-forecast',
+        networkTimeoutSeconds: 15,
         expiration: {
           maxEntries: 50,
           maxAgeSeconds: 24 * 60 * 60, // 24 hours
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
@@ -48,41 +49,43 @@ module.exports = {
           maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
     {
       urlPattern: /^https:\/\/air-quality-api\.open-meteo\.com\/v1\/air-quality/,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'open-meteo-air-quality',
+        networkTimeoutSeconds: 15,
         expiration: {
           maxEntries: 20,
           maxAgeSeconds: 60 * 60, // 1 hour
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
     {
       urlPattern: /^https:\/\/flood-api\.open-meteo\.com\/v1\/flood/,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'open-meteo-flood',
+        networkTimeoutSeconds: 15,
         expiration: {
-          maxEntries: 20,
+          maxEntries: 50,
           maxAgeSeconds: 3 * 60 * 60, // 3 hours
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
     {
       urlPattern: /^https:\/\/geocoding-api\.open-meteo\.com\/v1\/search/,
-      handler: 'CacheFirst',
+      handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'open-meteo-geocoding',
         expiration: {
@@ -90,21 +93,22 @@ module.exports = {
           maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
     {
       urlPattern: /^https:\/\/api\.rainviewer\.com\/public\/weather-maps\.json/,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'rainviewer-maps',
+        networkTimeoutSeconds: 10,
         expiration: {
           maxEntries: 5,
           maxAgeSeconds: 10 * 60, // 10 minutes
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
@@ -124,15 +128,16 @@ module.exports = {
     },
     {
       urlPattern: /^https:\/\/www\.gdacs\.org\/gdacsapi\/api\/events\/geteventlist/,
-      handler: 'StaleWhileRevalidate',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'gdacs-events',
+        networkTimeoutSeconds: 15,
         expiration: {
           maxEntries: 20,
           maxAgeSeconds: 15 * 60, // 15 minutes
         },
         cacheableResponse: {
-          statuses: [0, 200],
+          statuses: [200],
         },
       },
     },
@@ -193,7 +198,7 @@ module.exports = {
       },
     },
     {
-      urlPattern: /^https:\/\/{s}\.tile\.openstreetmap\.org\//,
+      urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\//,
       handler: 'CacheFirst',
       options: {
         cacheName: 'openstreetmap-tiles',

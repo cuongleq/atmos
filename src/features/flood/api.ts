@@ -78,7 +78,7 @@ async function scanRiverCells(place: { lat: number; lon: number }): Promise<any[
   
   for (const c of seen) {
     if (!c) continue;
-    const km = distanceKm({ lat: 0, lon: 0 }, c);
+    const km = distanceKm(place, c);
     if (km > DEFAULT_FLOOD_CONFIG.radiusKm) continue;
     byCell.set(floodCellKey(c), { cell: c, km: Math.round(km * 10) / 10 });
   }

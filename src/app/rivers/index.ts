@@ -4,7 +4,9 @@
  */
 
 // Get E from global namespace (set by engine bundle)
-const E = (typeof window !== 'undefined' && window.AtmosEngine) ? window.AtmosEngine.E : {};
+const E: any = (typeof window !== 'undefined' && (window as any).AtmosEngine)
+  ? ((window as any).AtmosEngine.E || (window as any).AtmosEngine)
+  : {};
 import { selectors, state } from '../state/index.js';
 import { $, fmt, finite, bearing, compass, esc, todayISO } from '../helpers/index.js';
 import { api, pLimit } from '../api/index.js';
@@ -67,13 +69,12 @@ async function scanRiverCells(place: any): Promise<any[]> {
   for (const dy of offs) for (const dx of offs) jobs.push({ lat: place.lat + dy, lon: place.lon + dx });
   
   const seen = await pLimit(jobs, 6, async (p) => {
-    const u = new URLSearchParams({
+    const data = await api('https://flood-api.open-meteo.com/v1/flood', {
       latitude: p.lat.toFixed(4),
       longitude: p.lon.toFixed(4),
       daily: 'river_discharge',
-      forecast_days: 1,
+      forecast_days: '1',
     });
-    const data = await api('https://flood-api.open-meteo.com/v1/flood', u);
     const q = data.daily?.river_discharge || [];
     if (!q.some((v: number) => finite(v) && v > 0)) return null;
     return { lat: data.latitude, lon: data.longitude };
@@ -94,16 +95,14 @@ async function scanRiverCells(place: any): Promise<any[]> {
 
 /** Fetch detailed river series */
 async function fetchRiverSeries(entry: any, place: any): Promise<any | null> {
-  const u = new URLSearchParams({
-    latitude: entry.cell.lat.toFixed(4),
-    longitude: entry.cell.lon.toFixed(4),
-    daily: 'river_discharge,river_discharge_median,river_discharge_p25,river_discharge_p75',
-    past_days: 365,
-    forecast_days: 7,
-  });
-  
   try {
-    const data = await api('https://flood-api.open-meteo.com/v1/flood', u);
+    const data = await api('https://flood-api.open-meteo.com/v1/flood', {
+      latitude: entry.cell.lat.toFixed(4),
+      longitude: entry.cell.lon.toFixed(4),
+      daily: 'river_discharge,river_discharge_median,river_discharge_p25,river_discharge_p75',
+      past_days: '365',
+      forecast_days: '7',
+    });
     const time = data.daily.time || [];
     const q = data.daily.river_discharge || [];
     const median = data.daily.river_discharge_median || [];
@@ -178,12 +177,13 @@ export function renderRivers(rivers: any[]): void {
     return;
   }
   
+  const place = selectors.currentPlace();
   const riverSel = state.riverSel.get();
   const sel = Math.min(riverSel, rivers.length - 1);
   state.riverSel.set(sel);
   
   if (metaEl) metaEl.textContent = rivers.length + ' tuyến sông/kênh trong bán kính ' + RIVER_RADIUS_KM + ' km';
-  if (nameEl) nameEl.textContent = 'Tên song tra tu OSM, o khong co ten thi ghi ro la chua co ten';
+  if (nameEl) nameEl.textContent = 'Tên sông tra từ OSM, ô không có tên thì ghi rõ là chưa có tên';
   
   box.innerHTML = rivers.map((r, i) => {
     const k = riverRiskOf(r);
@@ -193,18 +193,18 @@ export function renderRivers(rivers: any[]): void {
     const H = E.nominalStage(k?.q || 0, rt.a, rt.b, rt.q0);
     
     return '<button class="river-card' + (i === sel ? ' selected' : '') + '" data-river="' + i + '">' +
-      '<span class="river-top"><strong>' + fmt(r.km, 1) + ' km</strong><span class="small">' + (r.isLargest ? 'song lon nhat \u00B7 ' : '') + compass(bearing(place, r.cell)) + '</span></span>' +
-      '<span class="river-q">' + (k ? fmt(k.q, 1) : '\u2014') + '<em> m3/s</em></span>' +
-      '<span class="river-h' + (a?.level ? ' lv ' + a.level.tone : '') + '">' + (finite(H) ? fmt(H, 2) : '\u2014') + '<em> m quy uoc</em></span>' +
+      '<span class="river-top"><strong>' + fmt(r.km, 1) + ' km</strong><span class="small">' + (r.isLargest ? 'sông lớn nhất \u00B7 ' : '') + compass(E.bearingDeg(place, r.cell)) + '</span></span>' +
+      '<span class="river-q">' + (k ? fmt(k.q, 1) : '\u2014') + '<em> m³/s</em></span>' +
+      '<span class="river-h' + (a?.level ? ' lv ' + a.level.tone : '') + '">' + (finite(H) ? fmt(H, 2) : '\u2014') + '<em> m quy ước</em></span>' +
       '<span class="river-bar"><i style="width:' + Math.max(4, Math.min(100, k ? k.vsRecent * 100 + 50 : 50)) + '%" class="' + tone + '"></i></span>' +
-      (a?.level ? '<span class="warn-chip ' + a.level.tone + '">' + a.level.label + '</span>' : '<span class="small">duoi nguong tham chieu</span>') +
-      '<span class="small">' + (k && finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '% so voi TB 30 ngay' : '\u2014') + '</span>' +
+      (a?.level ? '<span class="warn-chip ' + a.level.tone + '">' + a.level.label + '</span>' : '<span class="small">dưới ngưỡng tham chiếu</span>') +
+      '<span class="small">' + (k && finite(k.vsRecent) ? (k.vsRecent >= 0 ? '+' : '') + fmt(k.vsRecent * 100, 0) + '% so với TB 30 ngày' : '\u2014') + '</span>' +
     '</button>';
   }).join('');
   
   box.querySelectorAll('[data-river]').forEach(btn => {
     btn.addEventListener('click', () => { 
-      state.riverSel.set(parseInt(btn.dataset.river!)); 
+      state.riverSel.set(parseInt((btn as HTMLElement).dataset['river']!)); 
       renderRivers(rivers); 
       renderRiverChart();
     });
@@ -251,7 +251,9 @@ export function renderRiverChart(): void {
   const series = (i: number) => (r.median?.[i] != null && finite(r.median[i]) ? r.median[i] : r.q[i]);
   const vals: number[] = [];
   for (let i = lo; i <= hi; i++) {
-    for (const c of [series, r.p25, r.p75]) if (finite(c?.[i])) vals.push(c[i]!);
+    const sVal = series(i);
+    if (finite(sVal)) vals.push(sVal);
+    for (const c of [r.p25, r.p75]) if (finite(c?.[i])) vals.push(c[i]!);
   }
   for (const t of r.levels?.thresholds || []) if (finite(t.q)) vals.push(t.q);
   if (!vals.length) { host.innerHTML = '<p class="muted">Khong co so lieu.</p>'; return; }

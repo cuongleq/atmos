@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - run: npm ci --legacy-peer-deps
       - run: node collect-nchmf.mjs
         working-directory: .
       - run: node build.mjs

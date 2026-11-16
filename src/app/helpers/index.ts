@@ -6,8 +6,8 @@
 import { Place } from '../types/app.js';
 import { BEARINGS, COMPASS8, WEATHER_FAMILY_ICON } from '../constants/index.js';
 
-// Get E from global namespace (set by engine bundle)
-const E = (window as any).AtmosEngine;
+// Get E namespace from global AtmosEngine (set by engine bundle)
+const E = (typeof window !== 'undefined' && window.AtmosEngine?.E) ? window.AtmosEngine.E : {};
 
 /** Format number with Vietnamese locale */
 export const fmt = (v: number | null | undefined, n = 1): string => {

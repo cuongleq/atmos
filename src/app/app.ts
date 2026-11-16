@@ -15,7 +15,8 @@ import { loadStorm } from './storm/index.js';
 import { renderNchmf, filterNews } from './nchmf/index.js';
 import { initDisaster, syncDisasterToPlace, loadDisasterData } from './disaster/index.js';
 import { DEFAULT_PLACE } from './constants/index.js';
-import { initSentry, getSentryConfig } from '../monitoring/sentry.js';
+import { initSentry } from '../monitoring/sentry.js';
+import { getSentryConfig } from '../monitoring/sentry-config.js';
 import { loadFloodData } from '../features/flood/api.js';
 
 /** Initialize the entire application */

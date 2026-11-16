@@ -169,7 +169,8 @@ async function assembleHtml() {
     if (file === 'benchmark.json') {
       content = content.replace(/</g, '\\u003c');
     }
-    html = html.replace('/*' + file.toUpperCase().replace('.', '_') + '*/', () => content);
+    const placeholder = file === 'app.js' ? '/*APP*/' : '/*' + file.toUpperCase().replace('.', '_') + '*/';
+    html = html.replace(placeholder, () => content);
   }
   
   // NCHMF data (optional)
@@ -179,7 +180,7 @@ async function assembleHtml() {
     nchmf = JSON.parse(readFileSync(nchmfPath, 'utf8'));
   }
   nchmf = JSON.stringify(nchmf).replace(/</g, '\\u003c');
-  html = html.replace('/*NCHMF*/', () => nchmf);
+  html = html.replace('/*NCHMF_JSON*/', () => nchmf);
   
   // Lightning data (optional)
   const ltPath = join(DIST, 'lightning.json');
@@ -188,7 +189,7 @@ async function assembleHtml() {
     lightning = JSON.parse(readFileSync(ltPath, 'utf8'));
   }
   lightning = JSON.stringify(lightning).replace(/</g, '\\u003c');
-  html = html.replace('/*LIGHTNING*/', () => lightning);
+  html = html.replace('/*LIGHTNING_JSON*/', () => lightning);
   
   writeFileSync(join(DIST, 'index.html'), html);
   console.log('✅ Standalone HTML assembled:', Buffer.byteLength(html), 'bytes');
@@ -257,3 +258,5 @@ async function generateServiceWorker() {
     child.on('error', reject);
   });
 }
+
+main();

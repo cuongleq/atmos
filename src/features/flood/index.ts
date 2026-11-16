@@ -4,7 +4,7 @@
  */
 
 import { E } from '../../engine/index.js';
-import { nominalStage, floodLevels, riverRisk, ratingFor, RiverRiskResult, FloodLevelsResult, FloodLevelsOpts, FLOOD_BANDS } from '../../engine/hydrology.js';
+import { nominalStage, floodLevels, riverRisk, RiverRiskResult, FloodLevelsResult, FloodLevelsOpts, FLOOD_BANDS, ratingFor } from '../../engine/hydrology.js';
 import { distanceKm } from '../../engine/distance.js';
 
 /** GloFAS river cell */
@@ -314,17 +314,6 @@ export function sortRiversByRisk(rivers: RiverSeries[]): RiverSeries[] {
   });
 }
 
-/** Assess flood risk for a river */
-function assessFloodRisk(river: RiverSeries): { riskLevel: FloodRiskLevel } {
-  const risk = riverRisk({
-    q: river.qMedianToday ?? river.qToday,
-    qP25: river.p25Today,
-    qP75: river.p75Today,
-    recent: river.history.length > 0 ? E.meanS(river.history.slice(-30)) : null,
-  });
-  return { riskLevel: calculateRiskLevel(risk) };
-}
-
 /** Finite check helper */
 function finite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
@@ -339,10 +328,6 @@ export {
   RiverRiskResult,
   FloodLevelsResult,
   FloodLevelsOpts,
-  FLOOD_BANDS,
-  FloodLevelThreshold,
-  FloodLevelsResult,
-  RiverRiskResult,
   FloodLevelThreshold,
   FloodRiskLevel,
   FloodForecastConfig,
@@ -352,53 +337,6 @@ export {
   FloodRiskAssessment,
   RiverSeries,
   RiverSeries as RiverData,
-  FloodRiskLevel,
-  FloodLevelThreshold,
-  FloodForecastConfig,
-  FloodForecast,
-  FloodForecastPoint,
-  FloodAlert,
-  FloodRiskAssessment,
-  RiverSeries,
-  RiverGauge,
-  LocationFloodForecast,
-  FloodForecastConfig,
-  DEFAULT_FLOOD_CONFIG,
-  FLOOD_RISK_LEVELS,
-  FLOOD_BANDS,
-  FloodAlert,
-  FloodRiskResult,
-  FloodLevelsResult,
-  RiverRiskResult,
-  RiverSeries,
-  FloodLevelsOpts,
-  FloodLevelThreshold,
-  FloodRiskLevel,
-  FloodForecastConfig,
-  FloodForecast,
-  FloodForecastPoint,
-  FloodAlert,
-  FloodRiskAssessment,
-  RiverSeries,
-  RiverGauge,
-  LocationFloodForecast,
-  FloodForecastConfig,
-  DEFAULT_FLOOD_CONFIG,
-  FLOOD_RISK_LEVELS,
-  FloodAlert,
-  FloodRiskResult,
-  FloodLevelsResult,
-  RiverRiskResult,
-  RiverSeries,
-  FloodLevelsOpts,
-  FloodLevelThreshold,
-  FloodRiskLevel,
-  FloodForecastConfig,
-  FloodForecast,
-  FloodForecastPoint,
-  FloodAlert,
-  FloodRiskAssessment,
-  RiverSeries,
   RiverGauge,
   LocationFloodForecast,
   ratingFor,
